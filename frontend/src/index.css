@@ -1,0 +1,18 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+  body {
+    @apply bg-gray-950 text-gray-100 font-sans;
+    margin: 0;
+  }
+}
+
+/* Force-graph canvas fills its container */
+.graph-container canvas {
+  display: block;
+}

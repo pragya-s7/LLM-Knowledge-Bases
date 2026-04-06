@@ -1,0 +1,217 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [pgvector(map: "vector")]
+}
+
+enum SourceType {
+  URL
+  PDF
+  TEXT
+  THOUGHT
+}
+
+enum NodeStatus {
+  PENDING
+  COMMITTED
+  ARCHIVED
+}
+
+enum EdgeStatus {
+  PENDING
+  COMMITTED
+  ARCHIVED
+}
+
+enum EdgeType {
+  ASSOCIATIVE
+  CAUSAL
+  HIERARCHICAL
+  CONTRADICTS
+  THEMATIC
+}
+
+enum AnnotationType {
+  SUMMARY
+  INSIGHT
+  CONTRADICTION
+  OPEN_QUESTION
+  SYNTHESIS
+}
+
+enum NodeFeedbackAction {
+  APPROVED
+  RENAMED
+  REJECTED
+  MERGED
+}
+
+enum EdgeFeedbackReason {
+  NOT_RELATED
+  WRONG_TYPE
+  CONTEXT_SPECIFIC
+}
+
+enum SessionTrigger {
+  INGEST
+  QUERY
+  LINT
+  CORRECTION_SYNTHESIS
+}
+
+model User {
+  id                String                 @id @default(uuid())
+  email             String                 @unique
+  passwordHash      String
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+  nodes             Node[]
+  sources           Source[]
+  correctionProfile UserCorrectionProfile?
+  agentSessions     AgentSession[]
+  nodeFeedback      NodeFeedback[]
+  edgeFeedback      EdgeFeedback[]
+  healthReports     HealthReport[]
+}
+
+model Source {
+  id            String        @id @default(uuid())
+  userId        String
+  type          SourceType
+  url           String?
+  urlHash       String?       // for deduplication
+  rawContent    String
+  intentSignal  String?
+  processedAt   DateTime?
+  createdAt     DateTime      @default(now())
+  user          User          @relation(fields: [userId], references: [id])
+  nodes         Node[]
+  agentSessions AgentSession[]
+
+  @@index([userId, urlHash])
+}
+
+model Node {
+  id             String              @id @default(uuid())
+  userId         String
+  sourceId       String?
+  title          String
+  content        String
+  tags           String[]
+  activityScore  Float               @default(0.5)
+  agentGenerated Boolean             @default(true)
+  status         NodeStatus          @default(PENDING)
+  confidence     Float               @default(0.5)
+  embedding      Unsupported("vector(1536)")?
+  domainBucket   String?
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+  user           User                @relation(fields: [userId], references: [id])
+  source         Source?             @relation(fields: [sourceId], references: [id])
+  edgesFrom      Edge[]              @relation("FromNode")
+  edgesTo        Edge[]              @relation("ToNode")
+  annotations    Annotation[]
+  feedback       NodeFeedback[]
+
+  @@index([userId, status])
+  @@index([userId, domainBucket])
+}
+
+model Edge {
+  id             String             @id @default(uuid())
+  userId         String
+  fromNodeId     String
+  toNodeId       String
+  weight         Float              @default(0.5)
+  type           EdgeType
+  sourceCitation String
+  confidence     Float              @default(0.5)
+  status         EdgeStatus         @default(PENDING)
+  lastActivated  DateTime           @default(now())
+  archived       Boolean            @default(false)
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+  fromNode       Node               @relation("FromNode", fields: [fromNodeId], references: [id])
+  toNode         Node               @relation("ToNode", fields: [toNodeId], references: [id])
+  feedback       EdgeFeedback[]
+
+  @@index([userId, status])
+  @@index([fromNodeId, toNodeId])
+}
+
+model Annotation {
+  id             String         @id @default(uuid())
+  nodeId         String
+  agentSessionId String
+  content        String
+  type           AnnotationType
+  createdAt      DateTime       @default(now())
+  node           Node           @relation(fields: [nodeId], references: [id])
+}
+
+model NodeFeedback {
+  id               String             @id @default(uuid())
+  userId           String
+  nodeId           String
+  action           NodeFeedbackAction
+  newTitle         String?
+  mergedIntoNodeId String?
+  createdAt        DateTime           @default(now())
+  user             User               @relation(fields: [userId], references: [id])
+  node             Node               @relation(fields: [nodeId], references: [id])
+}
+
+model EdgeFeedback {
+  id        String             @id @default(uuid())
+  userId    String
+  edgeId    String
+  reason    EdgeFeedbackReason
+  createdAt DateTime           @default(now())
+  user      User               @relation(fields: [userId], references: [id])
+  edge      Edge               @relation(fields: [edgeId], references: [id])
+}
+
+model UserCorrectionProfile {
+  id          String   @id @default(uuid())
+  userId      String   @unique
+  rules       String[]
+  version     Int      @default(1)
+  generatedAt DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  user        User     @relation(fields: [userId], references: [id])
+}
+
+model AgentSession {
+  id                String         @id @default(uuid())
+  userId            String
+  sourceId          String?
+  trigger           SessionTrigger
+  inputTokens       Int            @default(0)
+  outputTokens      Int            @default(0)
+  nodesCreated      Int            @default(0)
+  edgesCreated      Int            @default(0)
+  edgesStrengthened Int            @default(0)
+  nodesRejected     Int            @default(0)
+  edgesRejected     Int            @default(0)
+  completedAt       DateTime?
+  createdAt         DateTime       @default(now())
+  user              User           @relation(fields: [userId], references: [id])
+  source            Source?        @relation(fields: [sourceId], references: [id])
+}
+
+model HealthReport {
+  id               String   @id @default(uuid())
+  userId           String
+  contradictions   Json     // array of { nodeAId, nodeBId, reason }
+  orphans          Json     // array of nodeIds
+  gaps             Json     // array of { concept, mentionedInNodeId }
+  probableDupes    Json     // array of { nodeAId, nodeBId, similarity }
+  suggestedSources Json     // array of { title, reason }
+  createdAt        DateTime @default(now())
+  user             User     @relation(fields: [userId], references: [id])
+}
