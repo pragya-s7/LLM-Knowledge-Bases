@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { X, Link2, FileText, Lightbulb, Upload } from 'lucide-react';
+import { X, Link2, FileText, Upload } from 'lucide-react';
 import { api } from '../lib/api';
 
 interface IngestPanelProps {
@@ -7,12 +7,11 @@ interface IngestPanelProps {
   onIngested: (sourceId: string) => void;
 }
 
-type Tab = 'url' | 'file' | 'thought';
+type Tab = 'url' | 'file';
 
 export default function IngestPanel({ onClose, onIngested }: IngestPanelProps) {
   const [tab, setTab] = useState<Tab>('url');
   const [url, setUrl] = useState('');
-  const [thought, setThought] = useState('');
   const [intentSignal, setIntentSignal] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
@@ -28,8 +27,6 @@ export default function IngestPanel({ onClose, onIngested }: IngestPanelProps) {
       let res;
       if (tab === 'url') {
         res = await api.sources.ingest({ type: 'URL', url, intentSignal: intentSignal || undefined });
-      } else if (tab === 'thought') {
-        res = await api.sources.ingest({ type: 'THOUGHT', text: thought, intentSignal: intentSignal || undefined });
       } else if (tab === 'file' && file) {
         const fd = new FormData();
         fd.append('type', file.name.endsWith('.pdf') ? 'PDF' : 'TEXT');
@@ -51,7 +48,6 @@ export default function IngestPanel({ onClose, onIngested }: IngestPanelProps) {
   const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
     { id: 'url', label: 'URL', icon: <Link2 className="w-4 h-4" /> },
     { id: 'file', label: 'File', icon: <FileText className="w-4 h-4" /> },
-    { id: 'thought', label: 'Thought', icon: <Lightbulb className="w-4 h-4" /> },
   ];
 
   return (
@@ -112,17 +108,6 @@ export default function IngestPanel({ onClose, onIngested }: IngestPanelProps) {
                 onChange={e => setFile(e.target.files?.[0] ?? null)}
               />
             </div>
-          )}
-
-          {tab === 'thought' && (
-            <textarea
-              placeholder="What's on your mind? Drop an idea, a question, a claim…"
-              value={thought}
-              onChange={e => setThought(e.target.value)}
-              required
-              rows={4}
-              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 text-white placeholder-gray-500 focus:outline-none focus:border-brand-500 resize-none"
-            />
           )}
 
           <div>

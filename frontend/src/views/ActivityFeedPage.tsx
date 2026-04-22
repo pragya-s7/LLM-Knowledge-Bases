@@ -16,6 +16,10 @@ export default function ActivityFeedPage() {
 
   useEffect(() => {
     api.agent.sessions().then(s => { setSessions(s); setLoading(false); }).catch(console.error);
+    const interval = setInterval(() => {
+      api.agent.sessions().then(setSessions).catch(console.error);
+    }, 4000);
+    return () => clearInterval(interval);
   }, []);
 
   return (

@@ -21,17 +21,17 @@ export default function ActivityFeedWidget() {
   }, [addEntry]));
 
   useSocketEvent('agent:complete', useCallback(({ nodesCreated, edgesCreated }) => {
-    addEntry(`Done — ${nodesCreated} nodes, ${edgesCreated} edges created`, 'complete');
+    addEntry(`Done — ${nodesCreated} nodes, ${edgesCreated} edges pending review`, 'complete');
   }, [addEntry]));
 
   useSocketEvent('agent:error', useCallback(({ message }) => {
-    addEntry(`Error: ${message}`, 'error');
+    addEntry(`Ingest failed: ${message}`, 'error');
   }, [addEntry]));
 
   if (entries.length === 0) return null;
 
   return (
-    <div className="absolute bottom-4 right-4 w-72 space-y-1.5 pointer-events-none">
+    <div className="absolute bottom-4 right-4 w-72 space-y-1.5 pointer-events-auto select-text">
       {entries.slice(0, 4).map(entry => (
         <div
           key={entry.id}

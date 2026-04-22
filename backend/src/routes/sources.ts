@@ -4,7 +4,7 @@ import { requireAuth, AuthRequest } from '../middleware/auth';
 import { prisma } from '../lib/prisma';
 import { fetchUrl, extractPdfText, hashUrl } from '../lib/ingest';
 import { runIngestAgent } from '../agents/ingestAgent';
-import { io } from '../index';
+import { io } from '../app';
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });

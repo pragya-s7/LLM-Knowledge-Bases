@@ -3,8 +3,21 @@ import OpenAI from 'openai';
 import { requireAuth, AuthRequest } from '../middleware/auth';
 import { prisma } from '../lib/prisma';
 import { buildQuerySystemPrompt, buildLintSystemPrompt } from '../agents/prompts';
-import { queryTool, lintTool } from '../agents/schemas';
 import { getEmbedding, cosineSimilarity } from '../lib/embeddings';
+import { jsonrepair } from 'jsonrepair';
+
+function parseJson<T>(text: string): T {
+  const fenceMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+  const raw = fenceMatch ? fenceMatch[1].trim() : text;
+  const start = raw.indexOf('{');
+  const end = raw.lastIndexOf('}');
+  const jsonStr = start !== -1 && end !== -1 ? raw.slice(start, end + 1) : raw;
+  try {
+    return JSON.parse(jsonStr) as T;
+  } catch {
+    return JSON.parse(jsonrepair(jsonStr)) as T;
+  }
+}
 import { runCorrectionSynthesis } from '../lib/cron';
 
 const router = Router();
@@ -35,7 +48,7 @@ router.post('/query', async (req: AuthRequest, res: Response): Promise<void> => 
   const queryEmbedding = await getEmbedding(question);
   const nodeEmbeddings = await prisma.$queryRaw<Array<{ id: string; embedding: string }>>`
     SELECT id, embedding::text FROM "Node"
-    WHERE "userId" = ${userId} AND status = 'COMMITTED' AND embedding IS NOT NULL
+    WHERE "userId" = ${userId} AND status = 'COMMITTED'::"NodeStatus" AND embedding IS NOT NULL
   `;
 
   const scored = nodeEmbeddings.map(n => ({
@@ -63,22 +76,21 @@ router.post('/query', async (req: AuthRequest, res: Response): Promise<void> => 
 
   const response = await client.chat.completions.create({
     model: MODEL,
-    max_tokens: 2048,
-    tools: [queryTool],
-    tool_choice: { type: 'function', function: { name: 'answer_query' } },
+    max_tokens: 8192,
+    response_format: { type: 'json_object' },
     messages: [
       { role: 'system', content: systemPrompt },
       { role: 'user', content: question },
     ],
   });
 
-  const call = response.choices[0].message.tool_calls?.[0];
-  if (!call) {
+  const text = response.choices[0].message.content;
+  if (!text) {
     res.status(500).json({ error: 'No response from agent' });
     return;
   }
 
-  const result = JSON.parse(call.function.arguments) as any;
+  const result = parseJson<any>(text);
 
   for (const ann of result.newAnnotations ?? []) {
     await prisma.annotation.create({
@@ -134,45 +146,48 @@ router.post('/lint', async (req: AuthRequest, res: Response): Promise<void> => {
 
   const response = await client.chat.completions.create({
     model: MODEL,
-    max_tokens: 4096,
-    tools: [lintTool],
-    tool_choice: { type: 'function', function: { name: 'graph_health_report' } },
+    max_tokens: 8192,
+    response_format: { type: 'json_object' },
     messages: [
       { role: 'system', content: buildLintSystemPrompt() },
       { role: 'user', content: `Graph nodes:\n${graphSummary}\n\nEdges:\n${edgeSummary}` },
     ],
   });
 
-  const call = response.choices[0].message.tool_calls?.[0];
-  if (!call) {
+  const text = response.choices[0].message.content;
+  if (!text) {
     res.status(500).json({ error: 'No response from agent' });
     return;
   }
 
-  const result = JSON.parse(call.function.arguments) as any;
+  const result = parseJson<any>(text);
 
   const titleToId = Object.fromEntries(nodes.map(n => [n.title, n.id]));
+
+  const contradictions = (result.contradictions ?? []).map((c: any) => ({
+    nodeAId: titleToId[c.nodeATitle],
+    nodeBId: titleToId[c.nodeBTitle],
+    nodeATitle: c.nodeATitle,
+    nodeBTitle: c.nodeBTitle,
+    reason: c.reason,
+  }));
+  const orphans = (result.orphans ?? []).map((t: string) => ({ nodeId: titleToId[t], title: t }));
+  const probableDupes = (result.probableDuplicates ?? result.probable_duplicates ?? []).map((d: any) => ({
+    nodeAId: titleToId[d.nodeATitle],
+    nodeBId: titleToId[d.nodeBTitle],
+    nodeATitle: d.nodeATitle,
+    nodeBTitle: d.nodeBTitle,
+    reason: d.reason,
+  }));
 
   const report = await prisma.healthReport.create({
     data: {
       userId,
-      contradictions: result.contradictions.map((c: any) => ({
-        nodeAId: titleToId[c.nodeATitle],
-        nodeBId: titleToId[c.nodeBTitle],
-        nodeATitle: c.nodeATitle,
-        nodeBTitle: c.nodeBTitle,
-        reason: c.reason,
-      })),
-      orphans: result.orphans.map((t: string) => ({ nodeId: titleToId[t], title: t })),
-      gaps: result.gaps,
-      probableDupes: result.probableDuplicates.map((d: any) => ({
-        nodeAId: titleToId[d.nodeATitle],
-        nodeBId: titleToId[d.nodeBTitle],
-        nodeATitle: d.nodeATitle,
-        nodeBTitle: d.nodeBTitle,
-        reason: d.reason,
-      })),
-      suggestedSources: result.suggestedSources,
+      contradictions,
+      orphans,
+      gaps: result.gaps ?? [],
+      probableDupes,
+      suggestedSources: result.suggestedSources ?? [],
     },
   });
 

@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Plus, GitBranch, Clock, Shield, Activity } from 'lucide-react';
+import { Plus, GitBranch, Shield, Activity } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 
 interface NavBarProps {
@@ -31,8 +31,6 @@ export default function NavBar({ pendingCount = 0, onIngest }: NavBarProps) {
           </span>
         } label="Review" />
         <NavLink to="/activity" active={pathname === '/activity'} icon={<Activity className="w-4 h-4" />} label="Activity" />
-        <NavLink to="/profile" active={pathname === '/profile'} icon={<Clock className="w-4 h-4" />} label="Profile" />
-        <NavLink to="/health" active={pathname === '/health'} icon={<Shield className="w-4 h-4" />} label="Health" />
       </div>
 
       {onIngest && (

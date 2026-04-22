@@ -6,8 +6,6 @@ import LoginPage from './views/LoginPage';
 import GraphPage from './views/GraphPage';
 import ReviewPage from './views/ReviewPage';
 import ActivityFeedPage from './views/ActivityFeedPage';
-import CorrectionProfilePage from './views/CorrectionProfilePage';
-import HealthReportPage from './views/HealthReportPage';
 
 export default function App() {
   const [user, setUser] = useState<AuthUser | null>(() => {
@@ -45,8 +43,6 @@ export default function App() {
           <Route path="/" element={user ? <GraphPage /> : <Navigate to="/login" replace />} />
           <Route path="/review" element={user ? <ReviewPage /> : <Navigate to="/login" replace />} />
           <Route path="/activity" element={user ? <ActivityFeedPage /> : <Navigate to="/login" replace />} />
-          <Route path="/profile" element={user ? <CorrectionProfilePage /> : <Navigate to="/login" replace />} />
-          <Route path="/health" element={user ? <HealthReportPage /> : <Navigate to="/login" replace />} />
         </Routes>
       </BrowserRouter>
     </AuthContext.Provider>

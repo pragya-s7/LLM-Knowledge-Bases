@@ -1,9 +1,14 @@
 import { GraphContext } from './types';
 
 export function buildExtractionSystemPrompt(ctx: GraphContext, intentSignal?: string): string {
-  const nodeIndex = ctx.nodes
-    .map(n => `- [${n.id}] "${n.title}" (domain: ${n.domainBucket ?? 'unknown'})`)
+  // Limit to 30 most recent nodes to keep the prompt manageable
+  const recentNodes = ctx.nodes.slice(-30);
+  const nodeIndex = recentNodes
+    .map(n => `- "${n.title}" (domain: ${n.domainBucket ?? 'unknown'})`)
     .join('\n');
+  const truncatedNote = ctx.nodes.length > 30
+    ? `\n(showing 30 of ${ctx.nodes.length} existing nodes — avoid duplicating similar concepts)`
+    : '';
 
   const correctionRules = ctx.correctionRules.length > 0
     ? `\n## User-Specific Rules (follow these before your defaults)\n${ctx.correctionRules.map((r, i) => `${i + 1}. ${r}`).join('\n')}`
@@ -15,21 +20,24 @@ export function buildExtractionSystemPrompt(ctx: GraphContext, intentSignal?: st
 
   return `You are MindGraph's knowledge extraction agent. Your job is to read a new source and identify the key concepts to add to a knowledge graph.
 
-## Existing Nodes (do NOT recreate these)
-${nodeIndex || '(empty graph — this is the first source)'}
+## Existing Nodes (avoid duplicating these exact concepts)
+${nodeIndex || '(empty graph — this is the first source)'}${truncatedNote}
 ${correctionRules}${intent}
 
 ## Rules
-1. Extract only atomic, standalone concepts worth their own node. Aim for 3–12 nodes per source.
-2. Node titles must be 3–7 words. Content is 1–3 sentences.
-3. Do NOT create nodes for concepts already in the existing node list above.
-4. Assign each node a domainBucket (a short lowercase label like "machine-learning", "philosophy", "biology").
-5. Confidence 0.0–1.0: how certain you are this is a distinct, useful concept.
-6. Return valid JSON matching the schema exactly. No prose outside the JSON.`;
+1. Always extract 3–8 important concepts from the source, even if the graph already has nodes from other domains. Different topics belong in the same graph.
+2. Node titles must be 3–7 words. The "content" field MUST be a 1–3 sentence factual summary — never null, never omitted.
+3. Only skip a concept if an existing node covers it with the SAME title or meaning. Do not skip concepts from a new domain.
+4. Assign each node a domainBucket (a short lowercase label like "history", "biology", "politics", "economics").
+5. Confidence 0.0–1.0: how certain you are this is a distinct, useful concept. Use 0.8+ for clear facts.
+6. Return ONLY a valid JSON object with no prose, no markdown, no code fences. Exactly this shape:
+{"newNodes":[{"title":"string","content":"string","tags":["string"],"confidence":0.0,"domainBucket":"string"}],"synthesisSummary":"string"}`;
 }
 
 export function buildEdgeSystemPrompt(ctx: GraphContext, intentSignal?: string): string {
-  const allNodes = ctx.nodes
+  // Limit to 40 nodes to keep prompt size manageable; prioritize recent (end of array)
+  const nodesToShow = ctx.nodes.length > 40 ? ctx.nodes.slice(-40) : ctx.nodes;
+  const allNodes = nodesToShow
     .map(n => `- "${n.title}" (domain: ${n.domainBucket ?? 'unknown'})`)
     .join('\n');
 
@@ -59,7 +67,8 @@ ${domainPairs}
 4. Cross-domain THEMATIC edges require the source to explicitly bridge both domains in a single sentence.
 5. Prefer connecting new nodes to existing nodes over creating isolated clusters.
 6. strengthenEdgeTitles: list pairs of existing node titles whose relationship is reinforced by this source.
-7. Return valid JSON matching the schema exactly.`;
+7. Return ONLY a valid JSON object with no prose, no markdown, no code fences. Exactly this shape:
+{"newEdges":[{"fromNodeTitle":"string","toNodeTitle":"string","sourceCitation":"string","confidence":0.0}],"strengthenEdgeTitles":[["nodeA","nodeB"]],"annotations":[{"nodeTitle":"string","type":"SUMMARY","content":"string"}]}`;
 }
 
 function getDomainPairs(ctx: GraphContext): string {
@@ -82,7 +91,8 @@ ${nodeIndex}
 1. Cite specific node IDs for every claim in your answer.
 2. If the answer path crosses a CONTRADICTS edge, surface the tension — do not resolve it.
 3. Suggest 2–3 follow-up questions the user might find useful.
-4. Return valid JSON matching the schema exactly.`;
+4. Return ONLY a valid JSON object with no prose, no markdown, no code fences. Exactly this shape:
+{"answer":"string","citedNodeIds":["string"],"contradictionSurfaced":false,"contradictionDetail":"string","followUpQuestions":["string"],"newAnnotations":[{"nodeId":"string","type":"INSIGHT","content":"string"}]}`;
 }
 
 export function buildLintSystemPrompt(): string {
@@ -94,7 +104,8 @@ export function buildLintSystemPrompt(): string {
 3. Gaps: important concepts mentioned in node content but without their own node.
 4. Probable duplicates: conceptually overlapping nodes that should be reviewed.
 5. Suggested sources: based on the graph's shape, what should the user read next?
-6. Return valid JSON matching the schema exactly.`;
+6. Return ONLY a valid JSON object with no prose, no markdown, no code fences. Exactly this shape:
+{"contradictions":[{"nodeATitle":"string","nodeBTitle":"string","reason":"string"}],"orphans":["string"],"gaps":[{"concept":"string","mentionedInNodeTitle":"string"}],"probableDuplicates":[{"nodeATitle":"string","nodeBTitle":"string","reason":"string"}],"suggestedSources":[{"title":"string","reason":"string"}]}`;
 }
 
 export function buildCorrectionSynthesisPrompt(): string {

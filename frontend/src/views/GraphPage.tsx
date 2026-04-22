@@ -9,13 +9,6 @@ import NodeDetailDrawer from '../components/NodeDetailDrawer';
 import ActivityFeedWidget from '../components/ActivityFeedWidget';
 import NavBar from '../components/NavBar';
 
-const EDGE_COLORS: Record<string, string> = {
-  ASSOCIATIVE: '#6366f1',
-  CAUSAL: '#f59e0b',
-  HIERARCHICAL: '#10b981',
-  CONTRADICTS: '#ef4444',
-  THEMATIC: '#8b5cf6',
-};
 
 interface ForceNode extends GraphNode {
   x?: number;
@@ -35,8 +28,8 @@ export default function GraphPage() {
   const [loading, setLoading] = useState(true);
   const [ingestOpen, setIngestOpen] = useState(false);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
-  const [agentStatus, setAgentStatus] = useState<string | null>(null);
   const [pendingCount, setPendingCount] = useState(0);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   // Initial graph load
   useEffect(() => {
@@ -52,13 +45,6 @@ export default function GraphPage() {
   }, []);
 
   // Socket events
-  useSocketEvent('agent:start', useCallback(() => {
-    setAgentStatus('Thinking…');
-  }, []));
-
-  useSocketEvent('agent:thinking', useCallback(({ message }) => {
-    setAgentStatus(message);
-  }, []));
 
   useSocketEvent('node:pending', useCallback((data) => {
     setNodes(prev => {
@@ -89,14 +75,11 @@ export default function GraphPage() {
     setEdges(prev => prev.map(e => e.id === data.id ? { ...e, weight: data.weight } : e));
   }, []));
 
-  useSocketEvent('agent:complete', useCallback(() => {
-    setAgentStatus(null);
+  useSocketEvent('agent:error', useCallback((data: { message: string }) => {
+    setErrorMsg(`Ingest failed: ${data.message}`);
+    setTimeout(() => setErrorMsg(null), 8000);
   }, []));
 
-  useSocketEvent('agent:error', useCallback(({ message }) => {
-    setAgentStatus(`Error: ${message}`);
-    setTimeout(() => setAgentStatus(null), 5000);
-  }, []));
 
   const graphData = {
     nodes,
@@ -139,8 +122,8 @@ export default function GraphPage() {
     ctx.fillText(node.title.length > 20 ? node.title.slice(0, 18) + '…' : node.title, x, y + size + 12);
   }
 
-  function edgeColor(edge: ForceLink) {
-    return EDGE_COLORS[edge.type] ?? '#4b5563';
+  function edgeColor(_edge: ForceLink) {
+    return '#4b5563';
   }
 
   return (
@@ -168,18 +151,18 @@ export default function GraphPage() {
             backgroundColor="#030712"
             width={typeof window !== 'undefined' ? window.innerWidth : 1200}
             height={typeof window !== 'undefined' ? window.innerHeight - 56 : 800}
+            d3ForceLink={(link: any) => link.distance(180).strength(0.5)}
+            d3VelocityDecay={0.3}
           />
         )}
 
-        {/* Agent status */}
-        {agentStatus && (
-          <div className="absolute bottom-16 left-1/2 -translate-x-1/2 bg-gray-900 border border-gray-700 text-gray-300 text-sm px-4 py-2 rounded-full flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-brand-500 animate-pulse" />
-            {agentStatus}
+        <ActivityFeedWidget />
+
+        {errorMsg && (
+          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-red-900/90 border border-red-500 text-red-200 text-sm px-4 py-2 rounded-lg shadow-lg z-50 max-w-md text-center">
+            {errorMsg}
           </div>
         )}
-
-        <ActivityFeedWidget />
       </div>
 
       {ingestOpen && (

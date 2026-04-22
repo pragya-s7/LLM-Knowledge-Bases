@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, ChevronRight, Sparkles } from 'lucide-react';
+import { X, ChevronRight } from 'lucide-react';
 import { api } from '../lib/api';
 import { NodeDetail } from '../types';
 
@@ -20,25 +20,10 @@ interface Props {
 export default function NodeDetailDrawer({ nodeId, onClose, onNavigateToNode }: Props) {
   const [node, setNode] = useState<NodeDetail | null>(null);
   const [loading, setLoading] = useState(true);
-  const [developLoading, setDevelopLoading] = useState(false);
-  const [developResult, setDevelopResult] = useState<any | null>(null);
-
   useEffect(() => {
     setLoading(true);
-    setDevelopResult(null);
     api.nodes.get(nodeId).then(n => { setNode(n); setLoading(false); }).catch(console.error);
   }, [nodeId]);
-
-  async function handleDevelop() {
-    if (!node) return;
-    setDevelopLoading(true);
-    try {
-      const result = await api.agent.query(`Develop this idea: "${node.title}". What's missing? What sources should I read? Give a synthesis of my current thinking on this.`);
-      setDevelopResult(result);
-    } finally {
-      setDevelopLoading(false);
-    }
-  }
 
   return (
     <div className="fixed right-0 top-14 bottom-0 w-96 bg-gray-900 border-l border-gray-800 z-40 flex flex-col overflow-hidden">
@@ -98,7 +83,7 @@ export default function NodeDetailDrawer({ nodeId, onClose, onNavigateToNode }: 
                     onClick={() => onNavigateToNode(edge.toNode.id)}
                     className="w-full flex items-center gap-2 text-left bg-gray-800 hover:bg-gray-750 rounded-lg px-3 py-2 text-sm transition-colors"
                   >
-                    <span className="text-gray-400 text-xs w-20 flex-shrink-0">{edge.type}</span>
+                    <span className="text-gray-400 text-xs w-20 flex-shrink-0">w: {edge.weight.toFixed(2)}</span>
                     <span className="text-gray-200 truncate">{edge.toNode.title}</span>
                     <ChevronRight className="w-3 h-3 text-gray-500 ml-auto flex-shrink-0" />
                   </button>
@@ -109,7 +94,7 @@ export default function NodeDetailDrawer({ nodeId, onClose, onNavigateToNode }: 
                     onClick={() => onNavigateToNode(edge.fromNode.id)}
                     className="w-full flex items-center gap-2 text-left bg-gray-800 hover:bg-gray-750 rounded-lg px-3 py-2 text-sm transition-colors"
                   >
-                    <span className="text-gray-400 text-xs w-20 flex-shrink-0">← {edge.type}</span>
+                    <span className="text-gray-400 text-xs w-20 flex-shrink-0">← w: {edge.weight.toFixed(2)}</span>
                     <span className="text-gray-200 truncate">{edge.fromNode.title}</span>
                     <ChevronRight className="w-3 h-3 text-gray-500 ml-auto flex-shrink-0" />
                   </button>
@@ -125,32 +110,6 @@ export default function NodeDetailDrawer({ nodeId, onClose, onNavigateToNode }: 
             </div>
           )}
 
-          {/* Develop This Idea */}
-          <button
-            onClick={handleDevelop}
-            disabled={developLoading}
-            className="w-full flex items-center justify-center gap-2 bg-gray-800 hover:bg-gray-700 border border-gray-700 text-sm text-white py-2.5 rounded-lg transition-colors disabled:opacity-50"
-          >
-            <Sparkles className="w-4 h-4 text-brand-400" />
-            {developLoading ? 'Thinking…' : 'Develop This Idea'}
-          </button>
-
-          {/* Develop result */}
-          {developResult && (
-            <div className="bg-gray-800 border border-gray-700 rounded-xl p-4 space-y-3">
-              <p className="text-gray-200 text-sm leading-relaxed">{developResult.answer}</p>
-              {developResult.followUpQuestions?.length > 0 && (
-                <div>
-                  <p className="text-xs text-gray-500 mb-1.5">Follow-up questions:</p>
-                  <ul className="space-y-1">
-                    {developResult.followUpQuestions.map((q: string, i: number) => (
-                      <li key={i} className="text-xs text-gray-400">• {q}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </div>
-          )}
         </div>
       ) : (
         <div className="flex items-center justify-center flex-1 text-gray-400">Node not found</div>
