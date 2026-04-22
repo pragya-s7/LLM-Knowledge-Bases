@@ -1,6 +1,6 @@
 import cron from 'node-cron';
 import { prisma } from './prisma';
-import Anthropic from '@anthropic-ai/sdk';
+import OpenAI from 'openai';
 import { buildCorrectionSynthesisPrompt } from '../agents/prompts';
 
 const DECAY_RATE = 0.05;
@@ -9,13 +9,8 @@ const INACTIVE_DAYS = 7;
 const AUTO_COMMIT_HOURS = 48;
 
 export function setupCronJobs() {
-  // Hebbian decay — runs daily at 3am
   cron.schedule('0 3 * * *', runDecay);
-
-  // Correction synthesis — runs weekly on Sunday at 4am
   cron.schedule('0 4 * * 0', runCorrectionSynthesisForAllUsers);
-
-  // Auto-commit stale pending items — runs every 6 hours
   cron.schedule('0 */6 * * *', autoCommitStalePending);
 
   console.log('Cron jobs scheduled: decay (daily), correction synthesis (weekly), auto-commit (6h)');
@@ -85,18 +80,21 @@ export async function runCorrectionSynthesis(userId: string): Promise<string[]> 
     ...edgeFeedback.map(f => `Edge "${f.edge.fromNode.title}" → "${f.edge.toNode.title}": rejected (${f.reason})`),
   ].join('\n');
 
-  const client = new Anthropic();
-  const response = await client.messages.create({
-    model: 'claude-sonnet-4-6',
-    max_tokens: 1024,
-    system: buildCorrectionSynthesisPrompt(),
-    messages: [{
-      role: 'user',
-      content: `Here are the user's recent corrections:\n\n${feedbackSummary}\n\nGenerate up to 5 rules.`,
-    }],
+  const client = new OpenAI({
+    baseURL: process.env.OLLAMA_BASE_URL ?? 'http://localhost:11434/v1',
+    apiKey: 'ollama',
   });
 
-  const text = response.content.find(b => b.type === 'text')?.text ?? '[]';
+  const response = await client.chat.completions.create({
+    model: process.env.OLLAMA_MODEL ?? 'gemma4',
+    max_tokens: 1024,
+    messages: [
+      { role: 'system', content: buildCorrectionSynthesisPrompt() },
+      { role: 'user', content: `Here are the user's recent corrections:\n\n${feedbackSummary}\n\nGenerate up to 5 rules.` },
+    ],
+  });
+
+  const text = response.choices[0].message.content ?? '[]';
   try {
     const rules = JSON.parse(text) as string[];
     const existing = await prisma.userCorrectionProfile.findUnique({ where: { userId } });

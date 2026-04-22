@@ -30,11 +30,11 @@ MindGraph is a living knowledge OS — a second brain that doesn't just store wh
 
 Most knowledge tools are passive. You write notes; they sit there. Retrieval-augmented systems are better, but they re-derive knowledge from scratch on every query — nothing accumulates. MindGraph is different in two ways:
 
-- **The graph is built by Claude, not by you.** You feed it raw sources — URLs, PDFs, pasted text, quick thoughts. Claude reads them, extracts concepts, creates nodes and edges, and integrates each new source into the existing graph. You never manually create a node. You explore what Claude builds.
+- **The graph is built by Gemma, not by you.** You feed it raw sources — URLs, PDFs, pasted text, quick thoughts. Gemma reads them, extracts concepts, creates nodes and edges, and integrates each new source into the existing graph. You never manually create a node. You explore what Gemma builds.
 
-- **The graph learns over time** — both through Hebbian co-activation and through your corrections. Edge weights between nodes strengthen through co-activation. Critically, Claude's understanding of your intentions sharpens session-by-session as it observes which nodes you reject, which edges you dispute, and what domain boundaries matter to you. The graph becomes a map of how your ideas actually relate, not just what Claude guessed.
+- **The graph learns over time** — both through Hebbian co-activation and through your corrections. Edge weights between nodes strengthen through co-activation. Critically, the model's understanding of your intentions sharpens session-by-session as it observes which nodes you reject, which edges you dispute, and what domain boundaries matter to you. The graph becomes a map of how your ideas actually relate, not just what the model guessed.
 
-The user experience is simple: drop in a source, optionally state why you're adding it, watch Claude build the graph in real time, then review what it made. Correct what's wrong. Ask questions. Feed it more. Over weeks, it becomes a genuine knowledge asset — shaped by your actual thinking, not an LLM's default assumptions about what connects to what.
+The user experience is simple: drop in a source, optionally state why you're adding it, watch Gemma build the graph in real time, then review what it made. Correct what's wrong. Ask questions. Feed it more. Over weeks, it becomes a genuine knowledge asset — shaped by your actual thinking, not an LLM's default assumptions about what connects to what.
 
 ---
 
@@ -42,26 +42,26 @@ The user experience is simple: drop in a source, optionally state why you're add
 
 ### 2.1 The Knowledge Graph
 
-The graph is the persistent artifact at the heart of the product. Every piece of knowledge lives as a node; every relationship between pieces of knowledge is an edge with a weight. Claude owns the graph — it creates nodes, draws edges, and writes annotations. Users browse it and correct it.
+The graph is the persistent artifact at the heart of the product. Every piece of knowledge lives as a node; every relationship between pieces of knowledge is an edge with a weight. Gemma owns the graph — it creates nodes, draws edges, and writes annotations. Users browse it and correct it.
 
 - **Nodes** represent atomic concepts, entities, claims, or ideas extracted from sources.
 - **Edges** represent relationships between nodes: causal, associative, contradictory, hierarchical, or thematic.
 - **Edge weights** reflect connection strength. Weights increase when nodes are co-activated and decay on inactivity.
-- **Annotations** are Claude-written insights attached to nodes: summaries, open questions, contradictions flagged, connections to other parts of the graph.
+- **Annotations** are Gemma-written insights attached to nodes: summaries, open questions, contradictions flagged, connections to other parts of the graph.
 - **Pending nodes/edges** are proposals awaiting user review. Shown in a distinct visual state before being committed to the graph.
 
 ---
 
 ### 2.2 The Ingest Pipeline
 
-Ingestion is the primary user action. The user drops in a source and optionally states their intent; Claude does the rest.
+Ingestion is the primary user action. The user drops in a source and optionally states their intent; Gemma does the rest.
 
-- **URL ingestion:** Claude fetches the article, strips boilerplate, extracts the full text, and processes it through the agent loop.
+- **URL ingestion:** Gemma fetches the article, strips boilerplate, extracts the full text, and processes it through the agent loop.
 - **File ingestion:** PDFs and plain text files are uploaded; text is extracted and sent to the agent.
-- **Quick thoughts:** a short text input that becomes a seed node immediately, with Claude expanding and connecting it to the graph.
-- **Per-source intent signal:** an optional one-line field ("I'm adding this because…") passed as a directive in the agent prompt, scoping which connections Claude should prioritize.
+- **Quick thoughts:** a short text input that becomes a seed node immediately, with Gemma expanding and connecting it to the graph.
+- **Per-source intent signal:** an optional one-line field ("I'm adding this because…") passed as a directive in the agent prompt, scoping which connections Gemma should prioritize.
 
-A single source may touch 10–20 nodes. Claude reads the full graph state before processing a new source, so every ingest is aware of everything already in the graph. This is what makes knowledge compound rather than accumulate as isolated entries.
+A single source may touch 10–20 nodes. Gemma reads the full graph state before processing a new source, so every ingest is aware of everything already in the graph. This is what makes knowledge compound rather than accumulate as isolated entries.
 
 ---
 
@@ -69,10 +69,10 @@ A single source may touch 10–20 nodes. Claude reads the full graph state befor
 
 The agent loop is the engine of the product. It runs on every ingest and on-demand queries.
 
-1. Claude receives the full graph state as structured JSON context: all nodes (id, title, content, tags), all edges (source, target, weight, type, last_activated), existing annotations, and the user's current correction profile.
-2. Claude receives the new source content and any per-source intent signal.
-3. Claude reasons through proposed changes in a scratchpad (chain-of-thought) before emitting structured output. The scratchpad is shown as a "Thinking…" animation in the ingest panel.
-4. Claude returns a structured response (via Anthropic structured outputs) with: new nodes to create, new edges to draw (each with a required source citation), existing edges to strengthen, annotations to attach, and a synthesis note.
+1. Gemma receives the full graph state as structured JSON context: all nodes (id, title, content, tags), all edges (source, target, weight, type, last_activated), existing annotations, and the user's current correction profile.
+2. Gemma receives the new source content and any per-source intent signal.
+3. Gemma reasons through proposed changes in a scratchpad (chain-of-thought) before emitting structured output. The scratchpad is shown as a "Thinking…" animation in the ingest panel.
+4. Gemma returns a structured response (via function calling / OpenAI-compatible API) with: new nodes to create, new edges to draw (each with a required source citation), existing edges to strengthen, annotations to attach, and a synthesis note.
 5. All proposed nodes and edges are written as **pending** records. High-confidence items (>0.85) auto-commit; low-confidence items enter the review queue.
 6. The backend parses the response, writes updates to PostgreSQL via Prisma, and emits graph delta events via Socket.io.
 7. The frontend receives the delta and re-renders the graph live.
@@ -107,7 +107,7 @@ After each ingest, the user can rate each new node with one of four actions:
 | ✗ Wrong concept | Reject and archive |
 | ⇌ Merge with [node] | Duplicate of an existing node |
 
-Feedback is stored in a `NodeFeedback` table and aggregated into per-user patterns: which concept types get rejected, which domains Claude over-extracts from, which granularity the user prefers.
+Feedback is stored in a `NodeFeedback` table and aggregated into per-user patterns: which concept types get rejected, which domains the model over-extracts from, which granularity the user prefers.
 
 #### Edge Rejection with Reason
 
@@ -117,25 +117,25 @@ Users can reject any edge with a reason:
 - **"Related, but not how you drew it"** — wrong edge type
 - **"Related in a different context"** — domain-specific, not general
 
-Each rejection trains a local rule stored in `EdgeFeedback`. These accumulate silently and get prepended to the system prompt as instructions Claude follows automatically.
+Each rejection trains a local rule stored in `EdgeFeedback`. These accumulate silently and get prepended to the system prompt as instructions Gemma follows automatically.
 
 #### Mandatory Edge Citations
 
-Claude is required to cite a specific passage from the source for every edge it draws. Inferential connections — those Claude makes without a direct textual basis — are automatically flagged as low-confidence and rendered differently in the graph. This single constraint cuts spurious cross-domain connections dramatically.
+Gemma is required to cite a specific passage from the source for every edge it draws. Inferential connections — those Gemma makes without a direct textual basis — are automatically flagged as low-confidence and rendered differently in the graph. This single constraint cuts spurious cross-domain connections dramatically.
 
 #### Domain Isolation by Default
 
-The graph infers domain buckets from your first few ingests. Edges between different domain buckets require a higher evidence threshold — Claude must cite a source that explicitly bridges them, not just imply a connection. Users can lower the threshold for specific bucket pairs. Cross-domain connections become notable when they appear, rather than noise.
+The graph infers domain buckets from your first few ingests. Edges between different domain buckets require a higher evidence threshold — Gemma must cite a source that explicitly bridges them, not just imply a connection. Users can lower the threshold for specific bucket pairs. Cross-domain connections become notable when they appear, rather than noise.
 
 #### Per-Ingest Intent Signal
 
-When submitting a source, an optional one-line field scopes Claude's behavior for that ingest:
+When submitting a source, an optional one-line field scopes Gemma's behavior for that ingest:
 
-- *"I'm adding this because I want to understand how attention mechanisms work"* → Claude focuses on mechanistic nodes
-- *"I'm adding this because it came up in an argument I want to resolve"* → Claude flags contradictions with existing nodes
-- *"I just found it interesting"* → Claude stays close to the source, minimal inference
+- *"I'm adding this because I want to understand how attention mechanisms work"* → Gemma focuses on mechanistic nodes
+- *"I'm adding this because it came up in an argument I want to resolve"* → Gemma flags contradictions with existing nodes
+- *"I just found it interesting"* → Gemma stays close to the source, minimal inference
 
-No entry means Claude uses its best judgment plus correction history.
+No entry means Gemma uses its best judgment plus correction history.
 
 #### Correction Synthesis (Meta-Prompt)
 
@@ -143,17 +143,17 @@ A weekly background job reads the `NodeFeedback` and `EdgeFeedback` tables and r
 
 > *"Here are the last 40 corrections this user made. Identify patterns. Produce 5 specific, falsifiable rules that should govern how you process this user's sources going forward. Example of a good rule: 'Do not draw THEMATIC edges between ML and philosophy domain buckets unless the source contains a sentence that explicitly names both domains.' Return only a JSON array of rule strings."*
 
-Claude synthesizes its own instruction update from your behavior. The resulting rules are versioned, stored in `UserCorrectionProfile`, and prepended to every agent system prompt. Users can view and override any rule in the Correction Profile view.
+Gemma synthesizes its own instruction update from your behavior. The resulting rules are versioned, stored in `UserCorrectionProfile`, and prepended to every agent system prompt. Users can view and override any rule in the Correction Profile view.
 
 ---
 
 ### 2.6 Semantic Deduplication
 
-Node merging is solved at ingest time rather than deferred to lint. When Claude proposes new nodes, each is embedded using a lightweight embedding model (text-embedding-3-small or Voyage). Before writing, each new node is cosine-similarity checked against existing nodes.
+Node merging is solved at ingest time rather than deferred to lint. When Gemma proposes new nodes, each is embedded using `nomic-embed-text` via Ollama (768-dim, runs locally). Before writing, each new node is cosine-similarity checked against existing nodes.
 
-- If similarity > **0.85**, Claude receives a secondary prompt: *"Node '[existing title]' already exists. Are these the same concept, a specialization, or a contradiction? Return one of: `MERGE`, `SPECIALIZE`, `CONTRADICT`, or `DISTINCT`."*
-- Claude decides automatically in most cases.
-- Ambiguous cases (Claude returns `DISTINCT` but similarity is still >0.85) surface in the user's review queue.
+- If similarity > **0.85**, Gemma receives a secondary prompt: *"Node '[existing title]' already exists. Are these the same concept, a specialization, or a contradiction? Return one of: `MERGE`, `SPECIALIZE`, `CONTRADICT`, or `DISTINCT`."*
+- Gemma decides automatically in most cases.
+- Ambiguous cases (Gemma returns `DISTINCT` but similarity is still >0.85) surface in the user's review queue.
 
 This runs in-band with the agent loop at negligible cost.
 
@@ -161,13 +161,13 @@ This runs in-band with the agent loop at negligible cost.
 
 ### 2.7 Graph Health & Linting
 
-Periodically, Claude runs a health check over the graph. The user triggers this manually.
+Periodically, Gemma runs a health check over the graph. The user triggers this manually.
 
 - **Find contradictions:** nodes that assert conflicting claims, flagged as contradiction annotations.
 - **Find orphans:** nodes with no edges or very low total weight across all connections.
 - **Find gaps:** important concepts mentioned in annotations but without their own node.
 - **Find probable duplicates:** nodes that passed the 0.85 similarity threshold but were marked `DISTINCT`. Surface for manual review.
-- **Suggest new sources:** based on current graph topology, Claude suggests what to read next.
+- **Suggest new sources:** based on current graph topology, Gemma suggests what to read next.
 
 ---
 
@@ -179,7 +179,7 @@ Periodically, Claude runs a health check over the graph. The user triggers this 
 |------------|------|
 | React + TypeScript + Vite | Component framework and build tooling |
 | react-force-graph (2D) | Interactive force-directed graph canvas; node size = activity score; edge thickness = Hebbian weight; pending nodes rendered in dashed outline |
-| Socket.io client | Receives real-time graph delta events from the backend as Claude writes |
+| Socket.io client | Receives real-time graph delta events from the backend as Gemma writes |
 | shadcn/ui + Tailwind CSS | UI components and styling |
 | React Router | Multi-page routing: graph view, node detail, ingest panel, review queue, health report |
 
@@ -189,18 +189,19 @@ Periodically, Claude runs a health check over the graph. The user triggers this 
 |------------|------|
 | Express + TypeScript | REST API server with JWT authentication |
 | Prisma ORM + PostgreSQL | Type-safe data layer; schemas for User, Node, Edge, Annotation, Source, HealthReport, NodeFeedback, EdgeFeedback, UserCorrectionProfile |
-| Socket.io server | Emits graph delta events to connected clients as Claude writes |
-| Anthropic SDK (`claude-sonnet-4-20250514`) | Agentic loop with structured outputs; separate prompts for node extraction, edge drawing, and deduplication |
+| Socket.io server | Emits graph delta events to connected clients as Gemma writes |
+| Ollama (`gemma4`, local) via OpenAI-compatible API | Agentic loop with function calling; separate prompts for node extraction, edge drawing, and deduplication. Runs on-device via Metal GPU (M2). |
 | Cheerio + node-fetch | URL fetching and HTML parsing for article ingestion |
 | pdf-parse | PDF text extraction for file uploads |
 | node-cron | Scheduled Hebbian decay job (24h) and weekly correction synthesis job |
-| text-embedding-3-small / Voyage | Node embedding for semantic deduplication |
+| `nomic-embed-text` via Ollama (768-dim) | Node embedding for semantic deduplication; runs locally, no API key |
 
 ### 3.3 Deployment
 
 - **Frontend:** Vercel (automatic deploys from main branch)
 - **Backend + Database:** Railway (PostgreSQL + Express on the same platform)
-- **Environment variables:** `ANTHROPIC_API_KEY`, `DATABASE_URL`, `JWT_SECRET`, `OPENAI_API_KEY` managed via Railway and Vercel dashboards
+- **LLM + Embeddings:** Ollama running locally (no API keys required); `OLLAMA_BASE_URL` defaults to `http://localhost:11434/v1`, model configurable via `OLLAMA_MODEL`
+- **Environment variables:** `DATABASE_URL`, `JWT_SECRET`, `OLLAMA_BASE_URL`, `OLLAMA_MODEL` managed via Railway and Vercel dashboards
 
 ---
 
@@ -346,7 +347,7 @@ Rather than one monolithic prompt, the agent loop uses three focused prompts in 
 
 ### 5.2 Structured Outputs
 
-All agent responses use Anthropic structured outputs — JSON schema enforced at the API level. This eliminates malformed JSON without retry logic.
+All agent responses use function calling via Ollama's OpenAI-compatible API — JSON schema passed as tool parameters. Responses are parsed from `tool_calls[0].function.arguments`.
 
 **Extraction output schema:**
 ```json
@@ -397,11 +398,11 @@ Every agent call assembles the system prompt in layers:
 4. Per-source intent signal (if provided)
 5. Few-shot examples of good and bad graph updates (2 concrete examples, static)
 
-The correction profile rules are the dynamic layer that makes Claude's behavior specific to this user. Example generated rule: *"Do not draw THEMATIC edges between ML and philosophy domain buckets unless the source explicitly bridges them in a single sentence."*
+The correction profile rules are the dynamic layer that makes the model's behavior specific to this user. Example generated rule: *"Do not draw THEMATIC edges between ML and philosophy domain buckets unless the source explicitly bridges them in a single sentence."*
 
 ### 5.4 Chain-of-Thought Scratchpad
 
-Before emitting structured output, Claude reasons through what it's about to create in a scratchpad. The scratchpad is not parsed or stored — it is shown as a "Thinking…" animation in the ingest panel. The reasoning step reduces errors on ambiguous sources and makes the agent's behavior legible.
+Before emitting structured output, Gemma reasons through what it's about to create in a scratchpad. The scratchpad is not parsed or stored — it is shown as a "Thinking…" animation in the ingest panel. The reasoning step reduces errors on ambiguous sources and makes the agent's behavior legible.
 
 ### 5.5 Ingest System Prompt (condensed)
 
@@ -426,9 +427,9 @@ Rules:
 
 ### 5.6 Query Prompt
 
-When the user asks a question against the graph, Claude receives: the question, the full node index (titles + summaries), full content for the top N most relevant nodes (retrieved by embedding similarity), and the shortest path between the most relevant nodes if a path query is detected.
+When the user asks a question against the graph, Gemma receives: the question, the full node index (titles + summaries), full content for the top N most relevant nodes (retrieved by embedding similarity), and the shortest path between the most relevant nodes if a path query is detected.
 
-Claude returns: an answer with node citations, any new annotations generated by the query, and suggested follow-up questions. If the answer requires crossing a `CONTRADICTS` edge, the tension is surfaced to the user rather than resolved silently.
+Gemma returns: an answer with node citations, any new annotations generated by the query, and suggested follow-up questions. If the answer requires crossing a `CONTRADICTS` edge, the tension is surfaced to the user rather than resolved silently.
 
 ### 5.7 Lint Prompt
 
@@ -565,7 +566,7 @@ A slide-in drawer showing full node detail.
 
 ### 7.5 Develop This Idea Panel *(new)*
 
-Triggered from the Node Detail view. Claude analyzes the node + its neighborhood + correction profile and returns:
+Triggered from the Node Detail view. Gemma analyzes the node + its neighborhood + correction profile and returns:
 
 - **What's missing:** "You have nodes on X and Z but nothing on Y, which is the bridge."
 - **Suggested sources** to fill the gap — specific, not generic.
@@ -579,9 +580,9 @@ A chronological log of all agent sessions. Each entry shows trigger, timestamp, 
 
 ### 7.7 Correction Profile View *(new)*
 
-Shows the current `UserCorrectionProfile`: the rules Claude is currently following for this user, their version, and when they were last updated. Each rule can be overridden or deleted. A button triggers a manual correction synthesis run.
+Shows the current `UserCorrectionProfile`: the rules Gemma is currently following for this user, their version, and when they were last updated. Each rule can be overridden or deleted. A button triggers a manual correction synthesis run.
 
-This view makes the learning system legible. The user can see exactly why Claude is behaving differently than it did on day one.
+This view makes the learning system legible. The user can see exactly why Gemma is behaving differently than it did on day one.
 
 ### 7.8 Graph Health Report
 
@@ -614,7 +615,7 @@ Multi-user graphs: Socket.io rooms are keyed by `userId`. Shared graphs (stretch
 
 ### April 16 — Milestone (Core Loop Working)
 
-The demo at milestone should show: paste a URL → Claude processes it → graph populates live with pending state → you can approve nodes → committed nodes appear solid → click a node and see its detail.
+The demo at milestone should show: paste a URL → Gemma processes it → graph populates live with pending state → you can approve nodes → committed nodes appear solid → click a node and see its detail.
 
 **Must be complete:**
 
@@ -660,7 +661,7 @@ The demo should tell a story: feed the graph 5–6 sources over 2 minutes, show 
 | Decay during active sessions | Pause decay for edges touched in the current session. Only decay edges untouched for 7+ days. |
 | Source deduplication | Check URL hash on ingest; return existing source nodes rather than re-processing. |
 | Correction profile cold start | New users have no feedback history. Default: require source citations for all edges, no cross-domain thematic edges without explicit citation. First correction overrides the default. |
-| Embedding model choice | `text-embedding-3-small` is cheap and fast. Voyage AI is higher quality for technical text. Start with `text-embedding-3-small`; swap if dedup quality is poor. |
+| Embedding model choice | `nomic-embed-text` via Ollama (768-dim, local). No API cost. If dedup quality is poor, swap to `mxbai-embed-large` (1024-dim) — requires updating the Prisma schema vector dimension and re-migrating. |
 | Review queue fatigue | If a user never reviews the queue, pending items accumulate. After 48 hours, high-confidence pending items (>0.85) auto-commit. Low-confidence items are archived. |
 
 ---

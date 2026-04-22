@@ -107,7 +107,7 @@ model Node {
   agentGenerated Boolean             @default(true)
   status         NodeStatus          @default(PENDING)
   confidence     Float               @default(0.5)
-  embedding      Unsupported("vector(1536)")?
+  embedding      Unsupported("vector(768)")?
   domainBucket   String?
   createdAt      DateTime            @default(now())
   updatedAt      DateTime            @updatedAt

@@ -15,10 +15,10 @@
 - [x] Agent routes (POST query, POST lint, POST correction-synthesis, GET sessions)
 - [x] Profile routes (GET/PATCH corrections)
 - [x] Socket.io handlers (auth middleware, userId rooms)
-- [x] Agent types + structured output schemas (Anthropic tool_use)
+- [x] Agent types + structured output schemas (OpenAI-compatible function calling, Ollama)
 - [x] Agent prompts (extraction, edge, query, lint, correction synthesis)
 - [x] Ingest agent loop (extraction → dedup → write nodes → edges → annotations → strengthen)
-- [x] Embeddings lib (text-embedding-3-small + cosine similarity)
+- [x] Embeddings lib (nomic-embed-text via Ollama, 768-dim + cosine similarity)
 - [x] Ingest lib (URL fetch+parse with cheerio, PDF extraction, URL hash dedup)
 - [x] Cron jobs (Hebbian decay daily, correction synthesis weekly, auto-commit 48h)
 - [x] .env.example
@@ -42,9 +42,11 @@
 - [x] Graph health report page (run lint, display contradictions/orphans/gaps/dupes/suggestions)
 
 ## Still Needed ⬜
-- [ ] `npm install` in backend/ and frontend/ (you need to run this)
-- [ ] Create `.env` file in backend/ (copy from .env.example, fill in keys)
-- [ ] `npx prisma migrate dev --name init` in backend/ (needs Postgres running with pgvector)
+- [x] `npm install` in backend/ and frontend/ (you need to run this)
+- [ ] Install Ollama: `brew install ollama` then `ollama serve`
+- [ ] Pull models: `ollama pull gemma4 && ollama pull nomic-embed-text` (verify `gemma4` tag at ollama.com/library; use `gemma3:27b` if unavailable)
+- [ ] Create `.env` file in backend/ (copy from .env.example — no API keys needed, just `DATABASE_URL` + `JWT_SECRET`)
+- [ ] `npx prisma migrate dev --name gemma-ollama` in backend/ (needs Postgres running with pgvector; vector dim is 768)
 - [ ] End-to-end smoke test: ingest a URL, check nodes/edges appear in graph
 - [ ] Fix: `edges/decay` route imports `runDecay` from cron — verify export works after install
 - [ ] Fix: `agent/lint` route maps HealthReport JSON fields — verify column names match Prisma model
@@ -54,7 +56,7 @@
 ## Deployment ⬜
 - [ ] Railway setup (PostgreSQL + backend service, enable pgvector extension with `CREATE EXTENSION vector`)
 - [ ] Vercel setup (frontend)
-- [ ] Set env vars on Railway + Vercel
+- [ ] Set env vars on Railway + Vercel (`DATABASE_URL`, `JWT_SECRET`, `OLLAMA_BASE_URL`, `OLLAMA_MODEL` — point `OLLAMA_BASE_URL` at a hosted Ollama instance for prod)
 - [ ] Verify CORS origin matches Vercel URL
 
 ## Pre-Demo Checklist ⬜
@@ -73,12 +75,18 @@
   cd backend && npm install
   cd ../frontend && npm install
 
-  # 2. Create backend/.env (copy from .env.example, add your keys)
+  # 2. Install and start Ollama (M2 Mac — uses Metal GPU)
+  brew install ollama
+  ollama serve &
+  ollama pull gemma4          # or gemma3:27b if gemma4 not yet on ollama.com/library
+  ollama pull nomic-embed-text
+
+  # 3. Create backend/.env (copy from .env.example — no API keys needed)
   cp backend/.env.example backend/.env
 
-  # 3. Start a local Postgres with pgvector, then:
+  # 4. Start a local Postgres with pgvector, then:
   cd backend
-  npx prisma migrate dev --name init
+  npx prisma migrate dev --name gemma-ollama
 
   # 4. Run both servers
   npm run dev  # from root (runs both concurrently)

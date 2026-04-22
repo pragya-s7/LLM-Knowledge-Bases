@@ -1,10 +1,13 @@
 import OpenAI from 'openai';
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const ollama = new OpenAI({
+  baseURL: process.env.OLLAMA_BASE_URL ?? 'http://localhost:11434/v1',
+  apiKey: 'ollama',
+});
 
 export async function getEmbedding(text: string): Promise<number[]> {
-  const response = await openai.embeddings.create({
-    model: 'text-embedding-3-small',
+  const response = await ollama.embeddings.create({
+    model: 'nomic-embed-text',
     input: text.slice(0, 8000),
   });
   return response.data[0].embedding;

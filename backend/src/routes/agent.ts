@@ -1,5 +1,5 @@
 import { Router, Response } from 'express';
-import Anthropic from '@anthropic-ai/sdk';
+import OpenAI from 'openai';
 import { requireAuth, AuthRequest } from '../middleware/auth';
 import { prisma } from '../lib/prisma';
 import { buildQuerySystemPrompt, buildLintSystemPrompt } from '../agents/prompts';
@@ -8,8 +8,11 @@ import { getEmbedding, cosineSimilarity } from '../lib/embeddings';
 import { runCorrectionSynthesis } from '../lib/cron';
 
 const router = Router();
-const client = new Anthropic();
-const MODEL = 'claude-sonnet-4-6';
+const client = new OpenAI({
+  baseURL: process.env.OLLAMA_BASE_URL ?? 'http://localhost:11434/v1',
+  apiKey: 'ollama',
+});
+const MODEL = process.env.OLLAMA_MODEL ?? 'gemma4';
 
 router.use(requireAuth);
 
@@ -19,7 +22,6 @@ router.post('/query', async (req: AuthRequest, res: Response): Promise<void> => 
 
   const userId = req.userId!;
 
-  // Load graph context
   const nodes = await prisma.node.findMany({
     where: { userId, status: 'COMMITTED' },
     select: { id: true, title: true, content: true, tags: true, domainBucket: true, activityScore: true },
@@ -30,7 +32,6 @@ router.post('/query', async (req: AuthRequest, res: Response): Promise<void> => 
     return;
   }
 
-  // Retrieve top N most relevant nodes by embedding similarity
   const queryEmbedding = await getEmbedding(question);
   const nodeEmbeddings = await prisma.$queryRaw<Array<{ id: string; embedding: string }>>`
     SELECT id, embedding::text FROM "Node"
@@ -60,24 +61,25 @@ router.post('/query', async (req: AuthRequest, res: Response): Promise<void> => 
     data: { userId, trigger: 'QUERY' },
   });
 
-  const response = await client.messages.create({
+  const response = await client.chat.completions.create({
     model: MODEL,
     max_tokens: 2048,
-    system: systemPrompt,
     tools: [queryTool],
-    tool_choice: { type: 'tool', name: 'answer_query' },
-    messages: [{ role: 'user', content: question }],
+    tool_choice: { type: 'function', function: { name: 'answer_query' } },
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: question },
+    ],
   });
 
-  const toolUse = response.content.find(b => b.type === 'tool_use');
-  if (!toolUse || toolUse.type !== 'tool_use') {
+  const call = response.choices[0].message.tool_calls?.[0];
+  if (!call) {
     res.status(500).json({ error: 'No response from agent' });
     return;
   }
 
-  const result = toolUse.input as any;
+  const result = JSON.parse(call.function.arguments) as any;
 
-  // Save new annotations from query
   for (const ann of result.newAnnotations ?? []) {
     await prisma.annotation.create({
       data: {
@@ -92,8 +94,8 @@ router.post('/query', async (req: AuthRequest, res: Response): Promise<void> => 
   await prisma.agentSession.update({
     where: { id: session.id },
     data: {
-      inputTokens: response.usage.input_tokens,
-      outputTokens: response.usage.output_tokens,
+      inputTokens: response.usage?.prompt_tokens ?? 0,
+      outputTokens: response.usage?.completion_tokens ?? 0,
       completedAt: new Date(),
     },
   });
@@ -130,24 +132,25 @@ router.post('/lint', async (req: AuthRequest, res: Response): Promise<void> => {
     return `"${from}" -[${e.type}]→ "${to}" (weight: ${e.weight.toFixed(2)})`;
   }).join('\n');
 
-  const response = await client.messages.create({
+  const response = await client.chat.completions.create({
     model: MODEL,
     max_tokens: 4096,
-    system: buildLintSystemPrompt(),
     tools: [lintTool],
-    tool_choice: { type: 'tool', name: 'graph_health_report' },
-    messages: [{ role: 'user', content: `Graph nodes:\n${graphSummary}\n\nEdges:\n${edgeSummary}` }],
+    tool_choice: { type: 'function', function: { name: 'graph_health_report' } },
+    messages: [
+      { role: 'system', content: buildLintSystemPrompt() },
+      { role: 'user', content: `Graph nodes:\n${graphSummary}\n\nEdges:\n${edgeSummary}` },
+    ],
   });
 
-  const toolUse = response.content.find(b => b.type === 'tool_use');
-  if (!toolUse || toolUse.type !== 'tool_use') {
+  const call = response.choices[0].message.tool_calls?.[0];
+  if (!call) {
     res.status(500).json({ error: 'No response from agent' });
     return;
   }
 
-  const result = toolUse.input as any;
+  const result = JSON.parse(call.function.arguments) as any;
 
-  // Resolve node titles to IDs for the report
   const titleToId = Object.fromEntries(nodes.map(n => [n.title, n.id]));
 
   const report = await prisma.healthReport.create({
@@ -176,8 +179,8 @@ router.post('/lint', async (req: AuthRequest, res: Response): Promise<void> => {
   await prisma.agentSession.update({
     where: { id: session.id },
     data: {
-      inputTokens: response.usage.input_tokens,
-      outputTokens: response.usage.output_tokens,
+      inputTokens: response.usage?.prompt_tokens ?? 0,
+      outputTokens: response.usage?.completion_tokens ?? 0,
       completedAt: new Date(),
     },
   });

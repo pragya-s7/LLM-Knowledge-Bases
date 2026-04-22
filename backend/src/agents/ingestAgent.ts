@@ -1,4 +1,4 @@
-import Anthropic from '@anthropic-ai/sdk';
+import OpenAI from 'openai';
 import { Server } from 'socket.io';
 import { prisma } from '../lib/prisma';
 import { GraphContext, ExtractionResult, EdgeResult, DeduplicationResult } from './types';
@@ -9,8 +9,11 @@ import {
 import { extractionTool, edgeTool, deduplicationTool } from './schemas';
 import { getEmbedding, cosineSimilarity } from '../lib/embeddings';
 
-const client = new Anthropic();
-const MODEL = 'claude-sonnet-4-6';
+const client = new OpenAI({
+  baseURL: process.env.OLLAMA_BASE_URL ?? 'http://localhost:11434/v1',
+  apiKey: 'ollama',
+});
+const MODEL = process.env.OLLAMA_MODEL ?? 'gemma4';
 const AUTO_COMMIT_THRESHOLD = 0.85;
 const DEDUP_SIMILARITY_THRESHOLD = 0.85;
 
@@ -87,18 +90,20 @@ async function runExtractionPrompt(
   intentSignal?: string
 ): Promise<ExtractionResult> {
   const systemPrompt = buildExtractionSystemPrompt(ctx, intentSignal);
-  const response = await client.messages.create({
+  const response = await client.chat.completions.create({
     model: MODEL,
     max_tokens: 4096,
-    system: systemPrompt,
     tools: [extractionTool],
-    tool_choice: { type: 'tool', name: 'extract_nodes' },
-    messages: [{ role: 'user', content: `Extract knowledge nodes from this source:\n\n${content.slice(0, 12000)}` }],
+    tool_choice: { type: 'function', function: { name: 'extract_nodes' } },
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: `Extract knowledge nodes from this source:\n\n${content.slice(0, 12000)}` },
+    ],
   });
 
-  const toolUse = response.content.find(b => b.type === 'tool_use');
-  if (!toolUse || toolUse.type !== 'tool_use') throw new Error('No tool use in extraction response');
-  return toolUse.input as ExtractionResult;
+  const call = response.choices[0].message.tool_calls?.[0];
+  if (!call) throw new Error('No tool call in extraction response');
+  return JSON.parse(call.function.arguments) as ExtractionResult;
 }
 
 async function runEdgePrompt(
@@ -107,18 +112,20 @@ async function runEdgePrompt(
   intentSignal?: string
 ): Promise<EdgeResult> {
   const systemPrompt = buildEdgeSystemPrompt(ctx, intentSignal);
-  const response = await client.messages.create({
+  const response = await client.chat.completions.create({
     model: MODEL,
     max_tokens: 4096,
-    system: systemPrompt,
     tools: [edgeTool],
-    tool_choice: { type: 'tool', name: 'draw_edges' },
-    messages: [{ role: 'user', content: `Draw edges for this source:\n\n${content.slice(0, 12000)}` }],
+    tool_choice: { type: 'function', function: { name: 'draw_edges' } },
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: `Draw edges for this source:\n\n${content.slice(0, 12000)}` },
+    ],
   });
 
-  const toolUse = response.content.find(b => b.type === 'tool_use');
-  if (!toolUse || toolUse.type !== 'tool_use') throw new Error('No tool use in edge response');
-  return toolUse.input as EdgeResult;
+  const call = response.choices[0].message.tool_calls?.[0];
+  if (!call) throw new Error('No tool call in edge response');
+  return JSON.parse(call.function.arguments) as EdgeResult;
 }
 
 async function deduplicateNodes(
@@ -129,7 +136,6 @@ async function deduplicateNodes(
 ): Promise<{ kept: ExtractionResult['newNodes']; merged: number }> {
   if (ctx.nodes.length === 0 || candidates.length === 0) return { kept: candidates, merged: 0 };
 
-  // Fetch embeddings for existing committed nodes
   const existingWithEmbeddings = await prisma.$queryRaw<Array<{ id: string; title: string; embedding: number[] }>>`
     SELECT id, title, embedding::text
     FROM "Node"
@@ -155,21 +161,20 @@ async function deduplicateNodes(
 
   if (similarPairs.length === 0) return { kept: candidates, merged: 0 };
 
-  // Ask Claude to decide
-  const response = await client.messages.create({
+  const response = await client.chat.completions.create({
     model: MODEL,
     max_tokens: 1024,
     tools: [deduplicationTool],
-    tool_choice: { type: 'tool', name: 'deduplicate_nodes' },
+    tool_choice: { type: 'function', function: { name: 'deduplicate_nodes' } },
     messages: [{
       role: 'user',
       content: `These new node candidates are similar to existing nodes. Decide: MERGE (same concept), SPECIALIZE (subtype), CONTRADICT (conflicting claim), or DISTINCT (genuinely different).\n\nPairs:\n${similarPairs.map(p => `- New: "${p.newTitle}" vs Existing: "${p.existingTitle}" (similarity: ${p.similarity.toFixed(2)})`).join('\n')}`,
     }],
   });
 
-  const toolUse = response.content.find(b => b.type === 'tool_use');
-  if (!toolUse || toolUse.type !== 'tool_use') return { kept: candidates, merged: 0 };
-  const result = toolUse.input as DeduplicationResult;
+  const call = response.choices[0].message.tool_calls?.[0];
+  if (!call) return { kept: candidates, merged: 0 };
+  const result = JSON.parse(call.function.arguments) as DeduplicationResult;
 
   const toMerge = new Set(
     result.decisions
@@ -278,7 +283,6 @@ async function writeAnnotations(
         type: ann.type,
       },
     });
-    // annotation:created event emitted only if node detail is open — handled client-side via node refetch
   }
 }
 
