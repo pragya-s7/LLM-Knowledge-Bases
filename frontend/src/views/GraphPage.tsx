@@ -87,10 +87,13 @@ export default function GraphPage() {
   };
 
   function nodeColor(node: ForceNode) {
-    if (node.status === 'PENDING') return '#6b7280';
+    if (node.status === 'PENDING') return '#8B4513';
     const score = node.activityScore ?? 0.5;
-    const intensity = Math.floor(score * 200 + 55);
-    return `rgb(79, ${intensity}, 247)`;
+    // Interpolate forest green (#2D5016) → terracotta (#8B4513) by activity score
+    const r = Math.floor(0x2D + score * (0x8B - 0x2D));
+    const g = Math.floor(0x50 + score * (0x45 - 0x50));
+    const b = Math.floor(0x16 + score * (0x13 - 0x16));
+    return `rgb(${r},${g},${b})`;
   }
 
   function nodeSize(node: ForceNode) {
@@ -105,7 +108,7 @@ export default function GraphPage() {
     ctx.beginPath();
     if (node.status === 'PENDING') {
       ctx.setLineDash([3, 3]);
-      ctx.strokeStyle = '#6b7280';
+      ctx.strokeStyle = '#8B4513';
       ctx.lineWidth = 1.5;
       ctx.arc(x, y, size, 0, 2 * Math.PI);
       ctx.stroke();
@@ -117,23 +120,23 @@ export default function GraphPage() {
     }
 
     ctx.font = `${Math.max(10, size * 1.2)}px sans-serif`;
-    ctx.fillStyle = node.status === 'PENDING' ? '#9ca3af' : '#e5e7eb';
+    ctx.fillStyle = node.status === 'PENDING' ? '#9A7A60' : '#1C0F00';
     ctx.textAlign = 'center';
     ctx.fillText(node.title.length > 20 ? node.title.slice(0, 18) + '…' : node.title, x, y + size + 12);
   }
 
   function edgeColor(_edge: ForceLink) {
-    return '#4b5563';
+    return '#7A5840';
   }
 
   return (
-    <div className="flex flex-col h-screen bg-gray-950 overflow-hidden">
+    <div className="flex flex-col h-screen bg-earth-bg overflow-hidden">
       <NavBar pendingCount={pendingCount} onIngest={() => setIngestOpen(true)} />
 
       <div className="flex-1 relative graph-container">
         {loading ? (
           <div className="flex items-center justify-center h-full">
-            <div className="text-gray-400">Loading graph…</div>
+            <div className="text-earth-muted">Loading graph…</div>
           </div>
         ) : (
           <ForceGraph2D
@@ -148,7 +151,7 @@ export default function GraphPage() {
             linkColor={(link) => edgeColor(link as ForceLink)}
             linkLineDash={(link) => (link as ForceLink).status === 'PENDING' ? [4, 4] : null}
             onNodeClick={(node) => setSelectedNodeId((node as ForceNode).id)}
-            backgroundColor="#030712"
+            backgroundColor="#FBF7F0"
             width={typeof window !== 'undefined' ? window.innerWidth : 1200}
             height={typeof window !== 'undefined' ? window.innerHeight - 56 : 800}
             d3ForceLink={(link: any) => link.distance(180).strength(0.5)}

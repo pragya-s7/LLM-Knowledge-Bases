@@ -20,8 +20,12 @@ export default function ActivityFeedWidget() {
     addEntry('Agent started processing…', 'start');
   }, [addEntry]));
 
-  useSocketEvent('agent:complete', useCallback(({ nodesCreated, edgesCreated }) => {
-    addEntry(`Done — ${nodesCreated} nodes, ${edgesCreated} edges pending review`, 'complete');
+  useSocketEvent('agent:complete', useCallback(({ nodesCreated, nodesPending, edgesCreated, edgesPending }: any) => {
+    const nodePart = `${nodesCreated} node${nodesCreated !== 1 ? 's' : ''}`;
+    const edgePart = `${edgesCreated} edge${edgesCreated !== 1 ? 's' : ''}`;
+    const pendingTotal = (nodesPending ?? 0) + (edgesPending ?? 0);
+    const pendingNote = pendingTotal > 0 ? ` (${pendingTotal} need review)` : '';
+    addEntry(`Done — ${nodePart}, ${edgePart} added${pendingNote}`, 'complete');
   }, [addEntry]));
 
   useSocketEvent('agent:error', useCallback(({ message }) => {
@@ -35,14 +39,14 @@ export default function ActivityFeedWidget() {
       {entries.slice(0, 4).map(entry => (
         <div
           key={entry.id}
-          className={`px-3 py-2 rounded-lg text-xs flex items-start gap-2 ${
-            entry.type === 'error' ? 'bg-red-900/80 text-red-200' :
-            entry.type === 'complete' ? 'bg-green-900/80 text-green-200' :
-            'bg-gray-900/90 text-gray-300'
-          } border border-white/10 backdrop-blur-sm`}
+          className={`px-3 py-2 rounded-lg text-xs flex items-start gap-2 border shadow-md ${
+            entry.type === 'error'    ? 'bg-red-50 text-red-800 border-red-200' :
+            entry.type === 'complete' ? 'bg-brand-50 text-brand-700 border-brand-500/30' :
+                                        'bg-earth-card text-earth-body border-earth-border'
+          }`}
         >
           <span className="flex-1">{entry.message}</span>
-          <span className="text-gray-500 flex-shrink-0">{entry.time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+          <span className="text-earth-faint flex-shrink-0">{entry.time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
         </div>
       ))}
     </div>

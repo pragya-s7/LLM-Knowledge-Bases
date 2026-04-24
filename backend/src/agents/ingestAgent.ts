@@ -41,17 +41,24 @@ export async function runIngestAgent(
   const sessionId = await createSession(userId, sourceId);
   io.to(userId).emit('agent:start', { sessionId, sourceId });
 
+  let totalInputTokens = 0;
+  let totalOutputTokens = 0;
+
   try {
     const graphCtx = await loadGraphContext(userId);
 
     // Step 1: Extract nodes
     io.to(userId).emit('agent:thinking', { message: 'Extracting concepts from source…' });
-    const extraction = await runExtractionPrompt(sourceContent, graphCtx, intentSignal);
+    const { result: extraction, usage: extractionUsage } = await runExtractionPrompt(sourceContent, graphCtx, intentSignal);
+    totalInputTokens += extractionUsage.prompt_tokens ?? 0;
+    totalOutputTokens += extractionUsage.completion_tokens ?? 0;
     console.log(`[Ingest] Extraction returned ${(extraction.newNodes ?? []).length} candidates`);
 
     // Step 2: Deduplication against existing committed nodes
     io.to(userId).emit('agent:thinking', { message: 'Checking for duplicates…' });
-    const { kept, merged } = await deduplicateNodes(extraction.newNodes ?? [], graphCtx, userId, sessionId);
+    const { kept, merged, usage: dedupUsage } = await deduplicateNodes(extraction.newNodes ?? [], graphCtx, userId, sessionId);
+    totalInputTokens += dedupUsage.prompt_tokens ?? 0;
+    totalOutputTokens += dedupUsage.completion_tokens ?? 0;
     console.log(`[Ingest] After dedup: ${kept.length} kept, ${merged} merged`);
 
     // Filter out schema-template placeholders the model sometimes emits literally
@@ -65,8 +72,8 @@ export async function runIngestAgent(
     }
 
     // Step 3: Write candidate nodes as PENDING
-    const createdNodes = await writeNodes(validKept, userId, sourceId, sessionId, io);
-    console.log(`[Ingest] Wrote ${createdNodes.length} nodes`);
+    const { nodes: createdNodes, committed: nodesCommitted, pending: nodesPending } = await writeNodes(validKept, userId, sourceId, sessionId, io);
+    console.log(`[Ingest] Wrote ${createdNodes.length} nodes (${nodesCommitted} committed, ${nodesPending} pending)`);
     const allNodes = [...graphCtx.nodes, ...createdNodes.map(n => ({
       id: n.id, title: n.title, content: n.content,
       tags: n.tags, domainBucket: n.domainBucket, activityScore: n.activityScore,
@@ -75,10 +82,12 @@ export async function runIngestAgent(
     // Step 4: Draw edges
     io.to(userId).emit('agent:thinking', { message: 'Drawing edges…' });
     const edgeCtx: GraphContext = { ...graphCtx, nodes: allNodes };
-    const edgeResult = await runEdgePrompt(sourceContent, edgeCtx, intentSignal);
+    const { result: edgeResult, usage: edgeUsage } = await runEdgePrompt(sourceContent, edgeCtx, intentSignal);
+    totalInputTokens += edgeUsage.prompt_tokens ?? 0;
+    totalOutputTokens += edgeUsage.completion_tokens ?? 0;
 
     // Step 5: Write edges as PENDING
-    await writeEdges(edgeResult, allNodes, userId, sessionId, io);
+    const { committed: edgesCommitted, pending: edgesPending } = await writeEdges(edgeResult, allNodes, userId, sessionId, io);
 
     // Step 6: Write annotations
     await writeAnnotations(edgeResult, allNodes, sessionId);
@@ -92,13 +101,19 @@ export async function runIngestAgent(
       edgesCreated: (edgeResult.newEdges ?? []).length,
       edgesStrengthened: (edgeResult.strengthenEdgeTitles ?? []).length,
       merged,
+      inputTokens: totalInputTokens,
+      outputTokens: totalOutputTokens,
     });
 
     io.to(userId).emit('agent:complete', {
       sessionId,
       synthesisSummary: extraction.synthesisSummary,
       nodesCreated: createdNodes.length,
-      edgesCreated: (edgeResult.newEdges ?? []).length,
+      nodesCommitted,
+      nodesPending,
+      edgesCreated: edgesCommitted + edgesPending,
+      edgesCommitted,
+      edgesPending,
       merged,
     });
   } catch (err) {
@@ -115,14 +130,13 @@ async function runExtractionPrompt(
   content: string,
   ctx: GraphContext,
   intentSignal?: string
-): Promise<ExtractionResult> {
+): Promise<{ result: ExtractionResult; usage: { prompt_tokens: number; completion_tokens: number } }> {
   const systemPrompt = buildExtractionSystemPrompt(ctx, intentSignal);
   console.log('[Ingest] Extraction system prompt (first 600 chars):\n', systemPrompt.slice(0, 600));
   console.log('[Ingest] Source content chars:', content.length, '| Sending first', Math.min(content.length, 8000), 'chars');
   const response = await client.chat.completions.create({
     model: MODEL,
     max_tokens: 8192,
-    response_format: { type: 'json_object' },
     messages: [
       { role: 'system', content: systemPrompt },
       { role: 'user', content: `Extract knowledge nodes from this source:\n\n${content.slice(0, 8000)}` },
@@ -132,19 +146,21 @@ async function runExtractionPrompt(
   const text = response.choices[0].message.content;
   if (!text) throw new Error('No content in extraction response');
   console.log('[Ingest] Raw extraction response (first 500 chars):', text.slice(0, 500));
-  return parseJson<ExtractionResult>(text);
+  return {
+    result: parseJson<ExtractionResult>(text),
+    usage: { prompt_tokens: response.usage?.prompt_tokens ?? 0, completion_tokens: response.usage?.completion_tokens ?? 0 },
+  };
 }
 
 async function runEdgePrompt(
   content: string,
   ctx: GraphContext,
   intentSignal?: string
-): Promise<EdgeResult> {
+): Promise<{ result: EdgeResult; usage: { prompt_tokens: number; completion_tokens: number } }> {
   const systemPrompt = buildEdgeSystemPrompt(ctx, intentSignal);
   const response = await client.chat.completions.create({
     model: MODEL,
     max_tokens: 8192,
-    response_format: { type: 'json_object' },
     messages: [
       { role: 'system', content: systemPrompt },
       { role: 'user', content: `Draw edges for this source:\n\n${content.slice(0, 8000)}` },
@@ -153,7 +169,10 @@ async function runEdgePrompt(
 
   const text = response.choices[0].message.content;
   if (!text) throw new Error('No content in edge response');
-  return parseJson<EdgeResult>(text);
+  return {
+    result: parseJson<EdgeResult>(text),
+    usage: { prompt_tokens: response.usage?.prompt_tokens ?? 0, completion_tokens: response.usage?.completion_tokens ?? 0 },
+  };
 }
 
 async function deduplicateNodes(
@@ -161,8 +180,9 @@ async function deduplicateNodes(
   ctx: GraphContext,
   userId: string,
   sessionId: string
-): Promise<{ kept: ExtractionResult['newNodes']; merged: number }> {
-  if (ctx.nodes.length === 0 || (candidates ?? []).length === 0) return { kept: candidates ?? [], merged: 0 };
+): Promise<{ kept: ExtractionResult['newNodes']; merged: number; usage: { prompt_tokens: number; completion_tokens: number } }> {
+  const noUsage = { prompt_tokens: 0, completion_tokens: 0 };
+  if (ctx.nodes.length === 0 || (candidates ?? []).length === 0) return { kept: candidates ?? [], merged: 0, usage: noUsage };
 
   const existingWithEmbeddings = await prisma.$queryRaw<Array<{ id: string; title: string; embedding: number[] }>>`
     SELECT id, title, embedding::text
@@ -187,12 +207,11 @@ async function deduplicateNodes(
     }
   }
 
-  if (similarPairs.length === 0) return { kept: candidates, merged: 0 };
+  if (similarPairs.length === 0) return { kept: candidates, merged: 0, usage: noUsage };
 
   const response = await client.chat.completions.create({
     model: MODEL,
     max_tokens: 1024,
-    response_format: { type: 'json_object' },
     messages: [{
       role: 'user',
       content: `These new node candidates are similar to existing nodes. Decide for each: MERGE (same concept), SPECIALIZE (subtype), CONTRADICT (conflicting claim), or DISTINCT (genuinely different).\n\nPairs:\n${similarPairs.map(p => `- New: "${p.newTitle}" vs Existing: "${p.existingTitle}" (similarity: ${p.similarity.toFixed(2)})`).join('\n')}\n\nReturn ONLY valid JSON, no prose: {"decisions":[{"newNodeTitle":"string","existingNodeTitle":"string","decision":"MERGE"}]}`,
@@ -200,7 +219,8 @@ async function deduplicateNodes(
   });
 
   const text = response.choices[0].message.content;
-  if (!text) return { kept: candidates, merged: 0 };
+  const usage = { prompt_tokens: response.usage?.prompt_tokens ?? 0, completion_tokens: response.usage?.completion_tokens ?? 0 };
+  if (!text) return { kept: candidates, merged: 0, usage };
   const result = parseJson<DeduplicationResult>(text);
 
   const toMerge = new Set(
@@ -212,6 +232,7 @@ async function deduplicateNodes(
   return {
     kept: candidates.filter(c => !toMerge.has(c.title)),
     merged: toMerge.size,
+    usage,
   };
 }
 
@@ -274,7 +295,9 @@ async function writeNodes(
     });
   }
 
-  return created;
+  const committed = created.filter(n => n.status === 'COMMITTED').length;
+  const pending = created.filter(n => n.status === 'PENDING').length;
+  return { nodes: created, committed, pending };
 }
 
 async function writeEdges(
@@ -284,6 +307,9 @@ async function writeEdges(
   sessionId: string,
   io: Server
 ) {
+  let committed = 0;
+  let pending = 0;
+
   for (const proposal of edgeResult.newEdges ?? []) {
     const fromNode = allNodes.find(n => n.title === proposal.fromNodeTitle);
     const toNode = allNodes.find(n => n.title === proposal.toNodeTitle);
@@ -305,6 +331,8 @@ async function writeEdges(
       },
     });
 
+    if (autoCommit) committed++; else pending++;
+
     const event = autoCommit ? 'edge:created' : 'edge:pending';
     io.to(userId).emit(event, {
       id: edge.id, fromNodeId: edge.fromNodeId, toNodeId: edge.toNodeId,
@@ -312,6 +340,8 @@ async function writeEdges(
       confidence: edge.confidence, status: edge.status,
     });
   }
+
+  return { committed, pending };
 }
 
 const VALID_ANNOTATION_TYPES = new Set(['SUMMARY', 'INSIGHT', 'CONTRADICTION', 'OPEN_QUESTION', 'SYNTHESIS']);
@@ -368,7 +398,7 @@ async function strengthenEdges(
 }
 
 async function loadGraphContext(userId: string): Promise<GraphContext> {
-  const [nodes, edges, profile] = await Promise.all([
+  const [nodes, edges] = await Promise.all([
     prisma.node.findMany({
       where: { userId, status: { not: 'ARCHIVED' } },
       select: { id: true, title: true, content: true, tags: true, domainBucket: true, activityScore: true },
@@ -377,10 +407,9 @@ async function loadGraphContext(userId: string): Promise<GraphContext> {
       where: { userId, status: 'COMMITTED', archived: false },
       select: { id: true, fromNodeId: true, toNodeId: true, type: true, weight: true },
     }),
-    prisma.userCorrectionProfile.findUnique({ where: { userId } }),
   ]);
 
-  return { nodes, edges, correctionRules: profile?.rules ?? [] };
+  return { nodes, edges };
 }
 
 async function createSession(userId: string, sourceId: string): Promise<string> {
@@ -392,7 +421,7 @@ async function createSession(userId: string, sourceId: string): Promise<string> 
 
 async function finalizeSession(
   sessionId: string,
-  stats: { nodesCreated: number; edgesCreated: number; edgesStrengthened: number; merged: number }
+  stats: { nodesCreated: number; edgesCreated: number; edgesStrengthened: number; merged: number; inputTokens: number; outputTokens: number }
 ) {
   await prisma.agentSession.update({
     where: { id: sessionId },
@@ -400,6 +429,8 @@ async function finalizeSession(
       nodesCreated: stats.nodesCreated,
       edgesCreated: stats.edgesCreated,
       edgesStrengthened: stats.edgesStrengthened,
+      inputTokens: stats.inputTokens,
+      outputTokens: stats.outputTokens,
       completedAt: new Date(),
     },
   });

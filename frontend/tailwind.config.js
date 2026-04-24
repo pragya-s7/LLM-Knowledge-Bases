@@ -4,11 +4,21 @@ export default {
   theme: {
     extend: {
       colors: {
+        earth: {
+          bg:     '#FAF7F0', // warm white — main background
+          card:   '#F0E5D0', // cream — cards / surfaces
+          input:  '#E3D0B8', // light tan — inputs
+          border: '#C8A882', // medium tan — borders
+          text:   '#1C0F00', // near-black — primary text
+          body:   '#3A2010', // dark brown — body text
+          muted:  '#6B4530', // medium brown — secondary text
+          faint:  '#9A7A5A', // warm taupe — placeholders / very muted
+        },
         brand: {
-          50: '#f0f4ff',
-          500: '#4f6ef7',
-          600: '#3b5ce4',
-          700: '#2d48c8',
+          50:  '#FDF0E8',
+          500: '#8B4513', // terracotta
+          600: '#6B3410',
+          700: '#4F260C',
         },
       },
     },

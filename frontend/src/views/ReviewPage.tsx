@@ -5,11 +5,11 @@ import { PendingNode, PendingEdge, NodeFeedbackAction, EdgeFeedbackReason } from
 import NavBar from '../components/NavBar';
 
 const EDGE_TYPE_COLORS: Record<string, string> = {
-  ASSOCIATIVE: 'text-indigo-400',
-  CAUSAL: 'text-amber-400',
-  HIERARCHICAL: 'text-emerald-400',
-  CONTRADICTS: 'text-red-400',
-  THEMATIC: 'text-purple-400',
+  ASSOCIATIVE: 'text-indigo-600',
+  CAUSAL: 'text-amber-700',
+  HIERARCHICAL: 'text-emerald-700',
+  CONTRADICTS: 'text-red-600',
+  THEMATIC: 'text-purple-600',
 };
 
 export default function ReviewPage() {
@@ -60,26 +60,26 @@ export default function ReviewPage() {
   const totalPending = nodes.length + edges.length;
 
   return (
-    <div className="flex flex-col h-screen bg-gray-950">
+    <div className="flex flex-col h-screen bg-earth-bg">
       <NavBar pendingCount={totalPending} />
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-3xl mx-auto px-6 py-8">
           <div className="flex items-center justify-between mb-6">
             <div>
-              <h1 className="text-2xl font-bold text-white">Review Queue</h1>
-              <p className="text-gray-400 text-sm mt-0.5">{totalPending} items awaiting review</p>
+              <h1 className="text-2xl font-bold text-earth-text">Review Queue</h1>
+              <p className="text-earth-muted text-sm mt-0.5">{totalPending} items awaiting review</p>
             </div>
             {totalPending > 0 && (
               <div className="flex gap-2">
                 <button
                   onClick={bulkApproveHighConfidence}
-                  className="text-sm bg-green-800 hover:bg-green-700 text-green-200 px-3 py-1.5 rounded-lg transition-colors"
+                  className="text-sm bg-green-100 hover:bg-green-200 text-green-800 border border-green-300 px-3 py-1.5 rounded-lg transition-colors"
                 >
                   Approve all &gt;85%
                 </button>
                 <button
                   onClick={bulkRejectLowConfidence}
-                  className="text-sm bg-red-900 hover:bg-red-800 text-red-200 px-3 py-1.5 rounded-lg transition-colors"
+                  className="text-sm bg-red-100 hover:bg-red-200 text-red-800 border border-red-300 px-3 py-1.5 rounded-lg transition-colors"
                 >
                   Reject all &lt;50%
                 </button>
@@ -88,30 +88,27 @@ export default function ReviewPage() {
           </div>
 
           {loading ? (
-            <div className="text-gray-400 text-center py-16">Loading…</div>
+            <div className="text-earth-muted text-center py-16">Loading…</div>
           ) : totalPending === 0 ? (
-            <div className="text-center py-16 text-gray-500">
-              <Check className="w-12 h-12 mx-auto mb-3 opacity-30" />
-              <p>All caught up. Queue is empty.</p>
-            </div>
+            <div />
           ) : (
             <div className="space-y-8">
               {/* Nodes */}
               {nodes.length > 0 && (
                 <section>
-                  <h2 className="text-sm font-medium text-gray-500 uppercase tracking-wide mb-3">
+                  <h2 className="text-sm font-medium text-earth-muted uppercase tracking-wide mb-3">
                     Proposed Nodes ({nodes.length})
                   </h2>
                   <div className="space-y-3">
                     {nodes.map(node => (
-                      <div key={node.id} className="bg-gray-900 border border-gray-800 rounded-xl p-4">
+                      <div key={node.id} className="bg-earth-card border border-earth-border rounded-xl p-4">
                         {renameId === node.id ? (
                           <div className="flex gap-2 mb-2">
                             <input
                               autoFocus
                               value={renameValue}
                               onChange={e => setRenameValue(e.target.value)}
-                              className="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-white text-sm focus:outline-none focus:border-brand-500"
+                              className="flex-1 bg-earth-input border border-earth-border rounded-lg px-3 py-1.5 text-earth-text text-sm focus:outline-none focus:border-brand-500"
                             />
                             <button
                               onClick={() => { handleNodeFeedback(node.id, 'RENAMED', { newTitle: renameValue }); setRenameId(null); }}
@@ -119,42 +116,42 @@ export default function ReviewPage() {
                             >
                               Save
                             </button>
-                            <button onClick={() => setRenameId(null)} className="text-gray-400 hover:text-white px-2">
+                            <button onClick={() => setRenameId(null)} className="text-earth-muted hover:text-earth-text px-2">
                               <X className="w-4 h-4" />
                             </button>
                           </div>
                         ) : (
                           <div className="flex items-start justify-between gap-3 mb-2">
-                            <h3 className="font-medium text-white">{node.title}</h3>
+                            <h3 className="font-medium text-earth-text">{node.title}</h3>
                             <span className={`text-xs px-2 py-0.5 rounded-full flex-shrink-0 ${
-                              node.confidence >= 0.85 ? 'bg-green-900/50 text-green-400' :
-                              node.confidence >= 0.5 ? 'bg-yellow-900/50 text-yellow-400' :
-                              'bg-red-900/50 text-red-400'
+                              node.confidence >= 0.85 ? 'bg-green-100 text-green-700' :
+                              node.confidence >= 0.5  ? 'bg-yellow-100 text-yellow-700' :
+                                                        'bg-red-100 text-red-700'
                             }`}>
                               {(node.confidence * 100).toFixed(0)}%
                             </span>
                           </div>
                         )}
-                        <p className="text-gray-400 text-sm mb-3">{node.content}</p>
+                        <p className="text-earth-muted text-sm mb-3">{node.content}</p>
                         {node.domainBucket && (
-                          <span className="text-xs text-brand-400 bg-brand-500/10 px-2 py-0.5 rounded-full mr-2">{node.domainBucket}</span>
+                          <span className="text-xs text-brand-500 bg-brand-500/10 px-2 py-0.5 rounded-full mr-2">{node.domainBucket}</span>
                         )}
                         <div className="flex gap-2 mt-3">
                           <button
                             onClick={() => handleNodeFeedback(node.id, 'APPROVED')}
-                            className="flex items-center gap-1 text-xs bg-green-900/40 hover:bg-green-900/70 text-green-300 border border-green-800 px-3 py-1.5 rounded-lg transition-colors"
+                            className="flex items-center gap-1 text-xs bg-green-100 hover:bg-green-200 text-green-800 border border-green-300 px-3 py-1.5 rounded-lg transition-colors"
                           >
                             <Check className="w-3 h-3" /> Good
                           </button>
                           <button
                             onClick={() => { setRenameId(node.id); setRenameValue(node.title); }}
-                            className="flex items-center gap-1 text-xs bg-blue-900/40 hover:bg-blue-900/70 text-blue-300 border border-blue-800 px-3 py-1.5 rounded-lg transition-colors"
+                            className="flex items-center gap-1 text-xs bg-earth-input hover:bg-earth-border/40 text-earth-body border border-earth-border px-3 py-1.5 rounded-lg transition-colors"
                           >
                             <Edit2 className="w-3 h-3" /> Rename
                           </button>
                           <button
                             onClick={() => handleNodeFeedback(node.id, 'REJECTED')}
-                            className="flex items-center gap-1 text-xs bg-red-900/40 hover:bg-red-900/70 text-red-300 border border-red-800 px-3 py-1.5 rounded-lg transition-colors"
+                            className="flex items-center gap-1 text-xs bg-red-100 hover:bg-red-200 text-red-800 border border-red-300 px-3 py-1.5 rounded-lg transition-colors"
                           >
                             <X className="w-3 h-3" /> Wrong
                           </button>
@@ -168,49 +165,49 @@ export default function ReviewPage() {
               {/* Edges */}
               {edges.length > 0 && (
                 <section>
-                  <h2 className="text-sm font-medium text-gray-500 uppercase tracking-wide mb-3">
+                  <h2 className="text-sm font-medium text-earth-muted uppercase tracking-wide mb-3">
                     Proposed Edges ({edges.length})
                   </h2>
                   <div className="space-y-3">
                     {edges.map(edge => (
-                      <div key={edge.id} className="bg-gray-900 border border-gray-800 rounded-xl p-4">
+                      <div key={edge.id} className="bg-earth-card border border-earth-border rounded-xl p-4">
                         <div className="flex items-center gap-2 mb-2">
-                          <span className="text-white font-medium text-sm">{edge.fromNode.title}</span>
-                          <span className={`text-xs font-mono ${EDGE_TYPE_COLORS[edge.type] ?? 'text-gray-400'}`}>—{edge.type}→</span>
-                          <span className="text-white font-medium text-sm">{edge.toNode.title}</span>
+                          <span className="text-earth-text font-medium text-sm">{edge.fromNode.title}</span>
+                          <span className={`text-xs font-mono ${EDGE_TYPE_COLORS[edge.type] ?? 'text-earth-muted'}`}>—{edge.type}→</span>
+                          <span className="text-earth-text font-medium text-sm">{edge.toNode.title}</span>
                           <span className={`ml-auto text-xs px-2 py-0.5 rounded-full flex-shrink-0 ${
-                            edge.confidence >= 0.85 ? 'bg-green-900/50 text-green-400' :
-                            edge.confidence >= 0.5 ? 'bg-yellow-900/50 text-yellow-400' :
-                            'bg-red-900/50 text-red-400'
+                            edge.confidence >= 0.85 ? 'bg-green-100 text-green-700' :
+                            edge.confidence >= 0.5  ? 'bg-yellow-100 text-yellow-700' :
+                                                      'bg-red-100 text-red-700'
                           }`}>
                             {(edge.confidence * 100).toFixed(0)}%
                           </span>
                         </div>
-                        <blockquote className="text-gray-400 text-xs border-l-2 border-gray-700 pl-3 italic mb-3">
+                        <blockquote className="text-earth-muted text-xs border-l-2 border-earth-border pl-3 italic mb-3">
                           "{edge.sourceCitation}"
                         </blockquote>
                         <div className="flex gap-2">
                           <button
                             onClick={() => api.review.commit([], [edge.id]).then(() => setEdges(prev => prev.filter(e => e.id !== edge.id)))}
-                            className="flex items-center gap-1 text-xs bg-green-900/40 hover:bg-green-900/70 text-green-300 border border-green-800 px-3 py-1.5 rounded-lg transition-colors"
+                            className="flex items-center gap-1 text-xs bg-green-100 hover:bg-green-200 text-green-800 border border-green-300 px-3 py-1.5 rounded-lg transition-colors"
                           >
                             <Check className="w-3 h-3" /> Approve
                           </button>
                           <button
                             onClick={() => handleEdgeFeedback(edge.id, 'NOT_RELATED')}
-                            className="flex items-center gap-1 text-xs bg-red-900/40 hover:bg-red-900/70 text-red-300 border border-red-800 px-3 py-1.5 rounded-lg transition-colors"
+                            className="flex items-center gap-1 text-xs bg-red-100 hover:bg-red-200 text-red-800 border border-red-300 px-3 py-1.5 rounded-lg transition-colors"
                           >
                             <X className="w-3 h-3" /> Not related
                           </button>
                           <button
                             onClick={() => handleEdgeFeedback(edge.id, 'WRONG_TYPE')}
-                            className="text-xs text-gray-400 hover:text-white border border-gray-700 hover:border-gray-500 px-3 py-1.5 rounded-lg transition-colors"
+                            className="text-xs text-earth-muted hover:text-earth-text border border-earth-border hover:border-brand-500 px-3 py-1.5 rounded-lg transition-colors"
                           >
                             Wrong type
                           </button>
                           <button
                             onClick={() => handleEdgeFeedback(edge.id, 'CONTEXT_SPECIFIC')}
-                            className="text-xs text-gray-400 hover:text-white border border-gray-700 hover:border-gray-500 px-3 py-1.5 rounded-lg transition-colors"
+                            className="text-xs text-earth-muted hover:text-earth-text border border-earth-border hover:border-brand-500 px-3 py-1.5 rounded-lg transition-colors"
                           >
                             Context only
                           </button>

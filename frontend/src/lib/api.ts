@@ -84,14 +84,6 @@ export const api = {
   agent: {
     query: (question: string) =>
       request<import('../types').QueryResult>('/agent/query', { method: 'POST', body: JSON.stringify({ question }) }),
-    lint: () => request<import('../types').HealthReport>('/agent/lint', { method: 'POST' }),
-    correctionSynthesis: () => request<{ rules: string[] }>('/agent/correction-synthesis', { method: 'POST' }),
     sessions: () => request<import('../types').AgentSession[]>('/agent/sessions'),
-  },
-
-  profile: {
-    corrections: () => request<import('../types').CorrectionProfile>('/profile/corrections'),
-    updateCorrections: (rules: string[]) =>
-      request<import('../types').CorrectionProfile>('/profile/corrections', { method: 'PATCH', body: JSON.stringify({ rules }) }),
   },
 };

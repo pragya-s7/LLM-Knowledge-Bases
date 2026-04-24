@@ -51,11 +51,11 @@ export default function IngestPanel({ onClose, onIngested }: IngestPanelProps) {
   ];
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-lg shadow-2xl">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800">
-          <h2 className="text-lg font-semibold text-white">Add to Graph</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
+      <div className="bg-[#F0E5D0] border border-[#C8A882] rounded-2xl w-full max-w-lg shadow-2xl pointer-events-auto">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-earth-border">
+          <h2 className="text-lg font-semibold text-earth-text">Add to Graph</h2>
+          <button onClick={onClose} className="text-earth-muted hover:text-earth-text transition-colors">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -66,7 +66,7 @@ export default function IngestPanel({ onClose, onIngested }: IngestPanelProps) {
               key={t.id}
               onClick={() => setTab(t.id)}
               className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm transition-colors ${
-                tab === t.id ? 'bg-brand-500 text-white' : 'text-gray-400 hover:text-white hover:bg-gray-800'
+                tab === t.id ? 'bg-brand-500 text-white' : 'text-earth-muted hover:text-earth-text hover:bg-earth-input'
               }`}
             >
               {t.icon} {t.label}
@@ -82,22 +82,22 @@ export default function IngestPanel({ onClose, onIngested }: IngestPanelProps) {
               value={url}
               onChange={e => setUrl(e.target.value)}
               required
-              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 text-white placeholder-gray-500 focus:outline-none focus:border-brand-500"
+              className="w-full bg-earth-input border border-earth-border rounded-lg px-4 py-2.5 text-earth-text placeholder-earth-faint focus:outline-none focus:border-brand-500"
             />
           )}
 
           {tab === 'file' && (
             <div
               onClick={() => fileRef.current?.click()}
-              className="border-2 border-dashed border-gray-700 rounded-lg p-8 text-center cursor-pointer hover:border-brand-500 transition-colors"
+              className="border-2 border-dashed border-earth-border rounded-lg p-8 text-center cursor-pointer hover:border-brand-500 transition-colors"
             >
-              <Upload className="w-8 h-8 text-gray-500 mx-auto mb-2" />
+              <Upload className="w-8 h-8 text-earth-faint mx-auto mb-2" />
               {file ? (
-                <p className="text-white">{file.name}</p>
+                <p className="text-earth-text">{file.name}</p>
               ) : (
                 <>
-                  <p className="text-gray-400">Drop a PDF or .txt file</p>
-                  <p className="text-gray-600 text-sm mt-1">or click to browse</p>
+                  <p className="text-earth-muted">Drop a PDF or .txt file</p>
+                  <p className="text-earth-faint text-sm mt-1">or click to browse</p>
                 </>
               )}
               <input
@@ -111,17 +111,17 @@ export default function IngestPanel({ onClose, onIngested }: IngestPanelProps) {
           )}
 
           <div>
-            <label className="text-xs text-gray-500 mb-1 block">I'm adding this because… (optional)</label>
+            <label className="text-xs text-earth-faint mb-1 block">I'm adding this because… (optional)</label>
             <input
               type="text"
               placeholder="e.g. I want to understand how attention mechanisms work"
               value={intentSignal}
               onChange={e => setIntentSignal(e.target.value)}
-              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 text-white placeholder-gray-500 focus:outline-none focus:border-brand-500 text-sm"
+              className="w-full bg-earth-input border border-earth-border rounded-lg px-4 py-2.5 text-earth-text placeholder-earth-faint focus:outline-none focus:border-brand-500 text-sm"
             />
           </div>
 
-          {error && <p className="text-red-400 text-sm">{error}</p>}
+          {error && <p className="text-red-600 text-sm">{error}</p>}
 
           <button
             type="submit"

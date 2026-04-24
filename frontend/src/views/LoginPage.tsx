@@ -27,17 +27,17 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-950">
-      <div className="w-full max-w-sm bg-gray-900 rounded-2xl p-8 shadow-xl border border-gray-800">
-        <h1 className="text-2xl font-bold text-white mb-1">MindGraph</h1>
-        <p className="text-gray-400 text-sm mb-8">Your knowledge OS that thinks back.</p>
+    <div className="min-h-screen flex items-center justify-center bg-earth-bg">
+      <div className="w-full max-w-sm bg-earth-card rounded-2xl p-8 shadow-xl border border-earth-border">
+        <h1 className="text-2xl font-bold text-earth-text mb-1">MindGraph</h1>
+        <p className="text-earth-muted text-sm mb-8">Your knowledge OS that thinks back.</p>
 
-        <div className="flex rounded-lg bg-gray-800 p-1 mb-6">
+        <div className="flex rounded-lg bg-earth-input p-1 mb-6">
           {(['login', 'register'] as const).map(m => (
             <button
               key={m}
               onClick={() => setMode(m)}
-              className={`flex-1 py-1.5 text-sm rounded-md transition-colors ${mode === m ? 'bg-brand-500 text-white' : 'text-gray-400 hover:text-white'}`}
+              className={`flex-1 py-1.5 text-sm rounded-md transition-colors ${mode === m ? 'bg-brand-500 text-white' : 'text-earth-muted hover:text-earth-text'}`}
             >
               {m === 'login' ? 'Sign in' : 'Register'}
             </button>
@@ -51,7 +51,7 @@ export default function LoginPage() {
             value={email}
             onChange={e => setEmail(e.target.value)}
             required
-            className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 text-white placeholder-gray-500 focus:outline-none focus:border-brand-500"
+            className="w-full bg-earth-input border border-earth-border rounded-lg px-4 py-2.5 text-earth-text placeholder-earth-faint focus:outline-none focus:border-brand-500"
           />
           <input
             type="password"
@@ -59,9 +59,9 @@ export default function LoginPage() {
             value={password}
             onChange={e => setPassword(e.target.value)}
             required
-            className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 text-white placeholder-gray-500 focus:outline-none focus:border-brand-500"
+            className="w-full bg-earth-input border border-earth-border rounded-lg px-4 py-2.5 text-earth-text placeholder-earth-faint focus:outline-none focus:border-brand-500"
           />
-          {error && <p className="text-red-400 text-sm">{error}</p>}
+          {error && <p className="text-red-600 text-sm">{error}</p>}
           <button
             type="submit"
             disabled={loading}

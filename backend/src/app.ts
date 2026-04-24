@@ -11,7 +11,6 @@ import nodesRouter from './routes/nodes';
 import edgesRouter from './routes/edges';
 import agentRouter from './routes/agent';
 import reviewRouter from './routes/review';
-import profileRouter from './routes/profile';
 
 export const app = express();
 export const server = http.createServer(app);
@@ -37,7 +36,6 @@ app.use('/nodes', nodesRouter);
 app.use('/edges', edgesRouter);
 app.use('/agent', agentRouter);
 app.use('/review', reviewRouter);
-app.use('/profile', profileRouter);
 
 app.get('/health', (_req, res) => res.json({ ok: true }));
 

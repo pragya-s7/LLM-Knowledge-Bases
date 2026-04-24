@@ -57,5 +57,4 @@ export interface GraphContext {
     type: string;
     weight: number;
   }>;
-  correctionRules: string[];
 }

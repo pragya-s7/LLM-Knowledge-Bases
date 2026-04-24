@@ -1,8 +1,6 @@
 import { Router, Response } from 'express';
 import { requireAuth, AuthRequest } from '../middleware/auth';
 import { prisma } from '../lib/prisma';
-import { runDecay } from '../lib/cron';
-
 const router = Router();
 router.use(requireAuth);
 
@@ -66,9 +64,5 @@ router.post('/:id/feedback', async (req: AuthRequest, res: Response): Promise<vo
   res.json({ ok: true });
 });
 
-router.post('/decay', async (_req: AuthRequest, res: Response): Promise<void> => {
-  await runDecay();
-  res.json({ ok: true });
-});
 
 export default router;

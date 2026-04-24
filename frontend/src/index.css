@@ -7,7 +7,9 @@
     box-sizing: border-box;
   }
   body {
-    @apply bg-gray-950 text-gray-100 font-sans;
+    background-color: #FAF7F0;
+    color: #1C0F00;
+    font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
     margin: 0;
   }
 }

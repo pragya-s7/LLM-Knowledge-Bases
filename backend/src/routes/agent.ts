@@ -2,7 +2,7 @@ import { Router, Response } from 'express';
 import OpenAI from 'openai';
 import { requireAuth, AuthRequest } from '../middleware/auth';
 import { prisma } from '../lib/prisma';
-import { buildQuerySystemPrompt, buildLintSystemPrompt } from '../agents/prompts';
+import { buildQuerySystemPrompt } from '../agents/prompts';
 import { getEmbedding, cosineSimilarity } from '../lib/embeddings';
 import { jsonrepair } from 'jsonrepair';
 
@@ -18,7 +18,6 @@ function parseJson<T>(text: string): T {
     return JSON.parse(jsonrepair(jsonStr)) as T;
   }
 }
-import { runCorrectionSynthesis } from '../lib/cron';
 
 const router = Router();
 const client = new OpenAI({
@@ -77,7 +76,6 @@ router.post('/query', async (req: AuthRequest, res: Response): Promise<void> => 
   const response = await client.chat.completions.create({
     model: MODEL,
     max_tokens: 8192,
-    response_format: { type: 'json_object' },
     messages: [
       { role: 'system', content: systemPrompt },
       { role: 'user', content: question },
@@ -115,98 +113,7 @@ router.post('/query', async (req: AuthRequest, res: Response): Promise<void> => 
   res.json(result);
 });
 
-router.post('/lint', async (req: AuthRequest, res: Response): Promise<void> => {
-  const userId = req.userId!;
 
-  const nodes = await prisma.node.findMany({
-    where: { userId, status: 'COMMITTED' },
-    select: { id: true, title: true, content: true, tags: true, domainBucket: true, activityScore: true },
-  });
-
-  if (nodes.length < 3) {
-    res.json({ message: 'Not enough nodes to lint. Add more sources first.' });
-    return;
-  }
-
-  const edges = await prisma.edge.findMany({
-    where: { userId, status: 'COMMITTED', archived: false },
-    select: { id: true, fromNodeId: true, toNodeId: true, type: true, weight: true },
-  });
-
-  const session = await prisma.agentSession.create({
-    data: { userId, trigger: 'LINT' },
-  });
-
-  const graphSummary = nodes.map(n => `[${n.id}] "${n.title}": ${n.content}`).join('\n');
-  const edgeSummary = edges.map(e => {
-    const from = nodes.find(n => n.id === e.fromNodeId)?.title ?? e.fromNodeId;
-    const to = nodes.find(n => n.id === e.toNodeId)?.title ?? e.toNodeId;
-    return `"${from}" -[${e.type}]→ "${to}" (weight: ${e.weight.toFixed(2)})`;
-  }).join('\n');
-
-  const response = await client.chat.completions.create({
-    model: MODEL,
-    max_tokens: 8192,
-    response_format: { type: 'json_object' },
-    messages: [
-      { role: 'system', content: buildLintSystemPrompt() },
-      { role: 'user', content: `Graph nodes:\n${graphSummary}\n\nEdges:\n${edgeSummary}` },
-    ],
-  });
-
-  const text = response.choices[0].message.content;
-  if (!text) {
-    res.status(500).json({ error: 'No response from agent' });
-    return;
-  }
-
-  const result = parseJson<any>(text);
-
-  const titleToId = Object.fromEntries(nodes.map(n => [n.title, n.id]));
-
-  const contradictions = (result.contradictions ?? []).map((c: any) => ({
-    nodeAId: titleToId[c.nodeATitle],
-    nodeBId: titleToId[c.nodeBTitle],
-    nodeATitle: c.nodeATitle,
-    nodeBTitle: c.nodeBTitle,
-    reason: c.reason,
-  }));
-  const orphans = (result.orphans ?? []).map((t: string) => ({ nodeId: titleToId[t], title: t }));
-  const probableDupes = (result.probableDuplicates ?? result.probable_duplicates ?? []).map((d: any) => ({
-    nodeAId: titleToId[d.nodeATitle],
-    nodeBId: titleToId[d.nodeBTitle],
-    nodeATitle: d.nodeATitle,
-    nodeBTitle: d.nodeBTitle,
-    reason: d.reason,
-  }));
-
-  const report = await prisma.healthReport.create({
-    data: {
-      userId,
-      contradictions,
-      orphans,
-      gaps: result.gaps ?? [],
-      probableDupes,
-      suggestedSources: result.suggestedSources ?? [],
-    },
-  });
-
-  await prisma.agentSession.update({
-    where: { id: session.id },
-    data: {
-      inputTokens: response.usage?.prompt_tokens ?? 0,
-      outputTokens: response.usage?.completion_tokens ?? 0,
-      completedAt: new Date(),
-    },
-  });
-
-  res.json(report);
-});
-
-router.post('/correction-synthesis', async (req: AuthRequest, res: Response): Promise<void> => {
-  const rules = await runCorrectionSynthesis(req.userId!);
-  res.json({ rules });
-});
 
 router.get('/sessions', async (req: AuthRequest, res: Response): Promise<void> => {
   const sessions = await prisma.agentSession.findMany({
